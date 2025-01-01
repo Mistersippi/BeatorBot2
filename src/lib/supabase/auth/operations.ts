@@ -43,22 +43,18 @@ export async function signUpWithEmail(
           username,
           pending_email_verification: true
         },
-        emailRedirectTo: `${siteUrl}/auth/confirm`
+        emailRedirectTo: `${siteUrl}/auth/verify`
       },
     });
 
     if (error) throw error;
 
-    // Check if email confirmation is required
-    const requiresEmailConfirmation = data?.user?.identities?.length === 0;
-
-    return { 
-      data, 
+    // Return success with email confirmation flag
+    return {
+      data,
       error: null,
-      message: requiresEmailConfirmation 
-        ? 'Please check your email to verify your account. Your profile will be created after verification.'
-        : 'Account created successfully.',
-      requiresEmailConfirmation
+      message: 'Please check your email for the confirmation link.',
+      requiresEmailConfirmation: true
     };
   } catch (error) {
     console.error('Signup error:', error);

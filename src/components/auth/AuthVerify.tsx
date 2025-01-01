@@ -11,6 +11,7 @@ export function AuthVerify() {
   const { setShowSignIn } = useAuth();
   const [verifying, setVerifying] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const verifyEmail = async () => {
@@ -23,17 +24,25 @@ export function AuthVerify() {
           throw new Error('Invalid verification link - missing required parameters');
         }
 
+        console.log('Verifying with params:', { token, type, email }); // Debug log
+
         // Verify the email
-        const { error: verifyError } = await verifyOtp(
+        const { data, error: verifyError } = await verifyOtp(
           token,
           type as 'signup' | 'recovery' | 'invite' | 'email',
           email
         );
 
-        if (verifyError) throw verifyError;
+        if (verifyError) {
+          console.error('Verification error:', verifyError); // Debug log
+          throw verifyError;
+        }
+
+        console.log('Verification successful:', data); // Debug log
+        setSuccess(true);
 
         // Show success message
-        toast.success('Email verified successfully!');
+        toast.success('Email verified successfully! You can now sign in.');
         
         // Wait a moment before redirecting
         setTimeout(() => {
@@ -56,8 +65,7 @@ export function AuthVerify() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <Loader className="w-8 h-8 animate-spin mb-4" />
-        <h1 className="text-xl font-semibold mb-2">Verifying your email...</h1>
-        <p className="text-gray-600">Please wait while we verify your email address.</p>
+        <p className="text-lg">Verifying your email...</p>
       </div>
     );
   }
@@ -65,18 +73,29 @@ export function AuthVerify() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <XCircle className="w-8 h-8 text-red-500 mb-4" />
-        <h1 className="text-xl font-semibold mb-2">Verification Failed</h1>
-        <p className="text-red-600">{error}</p>
+        <XCircle className="w-12 h-12 text-red-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Verification Failed</h2>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => navigate('/')}
+          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+        >
+          Return Home
+        </button>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <CheckCircle className="w-8 h-8 text-green-500 mb-4" />
-      <h1 className="text-xl font-semibold mb-2">Email Verified!</h1>
-      <p className="text-gray-600">Redirecting you to sign in...</p>
-    </div>
-  );
+  if (success) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Email Verified!</h2>
+        <p className="text-gray-600 mb-4">You can now sign in to your account.</p>
+        <p className="text-sm text-gray-500">Redirecting to home page...</p>
+      </div>
+    );
+  }
+
+  return null;
 }
