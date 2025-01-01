@@ -43,7 +43,7 @@ export async function signUpWithEmail(
           username,
           pending_email_verification: true
         },
-        emailRedirectTo: `${siteUrl}/auth/verify`
+        emailRedirectTo: `${siteUrl}/auth/verify?type=signup`
       },
     });
 

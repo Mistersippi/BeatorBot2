@@ -16,11 +16,21 @@ export function AuthVerify() {
   useEffect(() => {
     const verifyEmail = async () => {
       try {
-        const token = searchParams.get('token');
-        const type = searchParams.get('type');
-        const email = searchParams.get('email');
+        // Check URL hash for parameters
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
         
-        if (!token || !type || !email) {
+        // Try to get parameters from both query and hash
+        const token = searchParams.get('token') || hashParams.get('token');
+        const type = searchParams.get('type') || hashParams.get('type') || 'signup';
+        const email = searchParams.get('email') || hashParams.get('email');
+        
+        // Check for error in URL
+        const urlError = searchParams.get('error_description');
+        if (urlError) {
+          throw new Error(decodeURIComponent(urlError));
+        }
+
+        if (!token || !email) {
           throw new Error('Invalid verification link - missing required parameters');
         }
 
@@ -34,11 +44,11 @@ export function AuthVerify() {
         );
 
         if (verifyError) {
-          console.error('Verification error:', verifyError); // Debug log
+          console.error('Verification error:', verifyError);
           throw verifyError;
         }
 
-        console.log('Verification successful:', data); // Debug log
+        console.log('Verification successful:', data);
         setSuccess(true);
 
         // Show success message
