@@ -114,29 +114,6 @@ export async function checkUsernameAvailability(username: string): Promise<boole
  */
 export async function signInWithEmail(email: string, password: string) {
   try {
-    // First check if user exists but is unconfirmed
-    const { data: { users }, error: adminError } = await supabase.auth.admin.listUsers();
-    
-    if (adminError) {
-      console.error('Failed to check user status:', adminError);
-    } else {
-      const existingUser = users?.find(u => u.email === email);
-      if (existingUser && !existingUser.email_confirmed_at) {
-        // User exists but hasn't confirmed email
-        const { error: resendError } = await supabase.auth.resend({
-          type: 'signup',
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/verify`
-          }
-        });
-
-        if (resendError) throw resendError;
-        throw new Error('Please check your email to confirm your account before signing in.');
-      }
-    }
-
-    // Proceed with normal sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password

@@ -105,7 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?type=email&next=/welcome`,
           data: {
             username: metadata?.username || email.split('@')[0],
             pending_email_verification: true
@@ -115,8 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      // Check if email confirmation is required
-      const requiresEmailConfirmation = data?.user?.identities?.length === 0;
+      // Always return true for email confirmation since Supabase requires it
+      const requiresEmailConfirmation = true;
       
       if (!requiresEmailConfirmation && data.user) {
         await syncUserProfile(data.user);

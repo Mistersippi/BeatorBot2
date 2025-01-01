@@ -105,21 +105,17 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         onClose={() => setShowSignUp(false)}
         title="Check Your Email"
       >
-        <div className="p-6">
-          <div className="flex flex-col items-center justify-center text-center">
-            <Mail className="w-12 h-12 text-primary mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Verify Your Email</h2>
-            <p className="text-gray-600 mb-4">
-              We've sent a verification link to <span className="font-medium">{email}</span>.
-              Please check your email and click the link to complete your registration.
-            </p>
-            <button
-              onClick={() => setShowSignUp(false)}
-              className="w-full px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
-            >
-              Close
-            </button>
-          </div>
+        <div className="p-6 text-center">
+          <h2 className="text-2xl font-bold mb-4">Check Your Email</h2>
+          <p className="mb-6">
+            We've sent a verification link to <span className="font-semibold">{email}</span>.
+            Please check your inbox (and spam folder) to verify your email address.
+          </p>
+          {showVerificationMessage && (
+            <div className="mt-4 text-sm text-green-600">
+              Please check your email for a verification link.
+            </div>
+          )}
         </div>
       </AuthModal>
     );
