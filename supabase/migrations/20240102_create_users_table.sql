@@ -44,16 +44,35 @@ DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.users
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
 DROP POLICY IF EXISTS "Users can insert their own profile" ON public.users;
 
--- Create RLS policies
-CREATE POLICY "Public profiles are viewable by everyone" ON public.users
-FOR SELECT USING (true);
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
+DROP POLICY IF EXISTS "Allow authenticated users to create their profile" ON public.users;
 
-CREATE POLICY "Users can update their own profile" ON public.users
-FOR UPDATE USING (auth.uid() = auth_id)
+-- Create policies
+CREATE POLICY "Users can view their own profile"
+ON public.users FOR SELECT
+TO authenticated
+USING (
+    auth.uid() = auth_id
+);
+
+CREATE POLICY "Users can update their own profile"
+ON public.users FOR UPDATE
+TO authenticated
+USING (auth.uid() = auth_id)
 WITH CHECK (auth.uid() = auth_id);
 
-CREATE POLICY "Users can insert their own profile" ON public.users
-FOR INSERT WITH CHECK (auth.uid() = auth_id);
+CREATE POLICY "Allow authenticated users to create their profile"
+ON public.users FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = auth_id);
+
+CREATE POLICY "Allow service role full access"
+ON public.users
+TO service_role
+USING (true)
+WITH CHECK (true);
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS users_auth_id_idx ON public.users(auth_id);
