@@ -46,9 +46,12 @@ export async function signUpWithEmail(
     // Get the site URL for email redirect
     const siteUrl = import.meta.env.VITE_SITE_URL;
     if (!siteUrl) {
-      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+      console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
-    const redirectUrl = siteUrl || window.location.origin;
+
+    // Always use production URL for email redirects in production
+    const isProd = import.meta.env.PROD;
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
@@ -58,13 +61,25 @@ export async function signUpWithEmail(
         data: { 
           username,
           pending_email_verification: true,
-          has_set_username: false // New flag to indicate if user has set their own username
+          has_set_username: false
         },
         emailRedirectTo: `${redirectUrl}/auth/verify?type=signup`
       },
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase signup error:', error);
+      throw error;
+    }
+
+    // Create user profile immediately after signup
+    if (data?.user) {
+      const { error: profileError } = await syncUserProfile(data.user);
+      if (profileError) {
+        console.error('Error syncing user profile:', profileError);
+        throw profileError;
+      }
+    }
 
     return {
       data,
@@ -97,7 +112,7 @@ export async function syncUserProfile(user: User) {
     }
 
     if (!existingProfile) {
-      // Create new profile with minimal required data
+      // Create new profile with required data
       const { error: insertError } = await client
         .from('users')
         .insert({
@@ -106,12 +121,16 @@ export async function syncUserProfile(user: User) {
           username: user.user_metadata?.username || user.email?.split('@')[0],
           avatar_url: null,
           bio: null,
-          account_status: 'active' as const,
-          account_type: 'user' as const,
-          metadata: {} as Record<string, unknown>
+          has_set_username: false,
+          account_status: 'active',
+          account_type: 'user',
+          metadata: {}
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Error inserting user profile:', insertError);
+        throw insertError;
+      }
     }
 
     return { error: null };
@@ -189,9 +208,12 @@ export async function sendPasswordResetEmail(email: string) {
   try {
     const siteUrl = import.meta.env.VITE_SITE_URL;
     if (!siteUrl) {
-      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+      console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
-    const redirectUrl = siteUrl || window.location.origin;
+
+    // Always use production URL for email redirects in production
+    const isProd = import.meta.env.PROD;
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${redirectUrl}/auth/confirm?type=recovery&next=/account/update-password`
@@ -209,9 +231,12 @@ export async function sendMagicLink(email: string) {
   try {
     const siteUrl = import.meta.env.VITE_SITE_URL;
     if (!siteUrl) {
-      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+      console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
-    const redirectUrl = siteUrl || window.location.origin;
+
+    // Always use production URL for email redirects in production
+    const isProd = import.meta.env.PROD;
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
@@ -252,9 +277,12 @@ export async function inviteUser(email: string) {
   try {
     const siteUrl = import.meta.env.VITE_SITE_URL;
     if (!siteUrl) {
-      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+      console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
-    const redirectUrl = siteUrl || window.location.origin;
+
+    // Always use production URL for email redirects in production
+    const isProd = import.meta.env.PROD;
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${redirectUrl}/auth/confirm?type=invite&next=/welcome`,
