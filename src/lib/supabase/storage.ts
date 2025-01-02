@@ -1,8 +1,8 @@
 import { supabase } from './client';
 import { v4 as uuidv4 } from 'uuid';
 
-const AUDIO_BUCKET = 'audio-tracks';
-const IMAGE_BUCKET = 'track-artwork';
+export const AUDIO_BUCKET = 'audio-tracks';
+export const IMAGE_BUCKET = 'track-artwork';
 const MAX_IMAGE_SIZE = 500; // Max dimension in pixels
 
 interface UploadResult {

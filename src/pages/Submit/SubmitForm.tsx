@@ -10,7 +10,8 @@ import { FileInput } from './components/FileInput';
 import { AdvancedTags } from './components/AdvancedTags';
 import { uploadAudioTrack, uploadTrackArtwork } from '../../lib/supabase/storage';
 import { supabase } from '../../lib/supabase/client';
-import { DEFAULT_TRACK_IMAGE, GENRES, SUBGENRES, AUDIO_BUCKET, IMAGE_BUCKET } from '../../lib/constants';
+import { DEFAULT_TRACK_IMAGE, GENRES, SUBGENRES } from '../../lib/constants';
+import { AUDIO_BUCKET, IMAGE_BUCKET } from '../../lib/supabase/storage';
 import { SubmissionSuccess } from './SubmissionSuccess';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB for audio
