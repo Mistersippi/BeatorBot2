@@ -20,16 +20,17 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [verificationCode, setVerificationCode] = useState<string | null>(null);
+  const [isLoadingCode, setIsLoadingCode] = useState(false);
   const [data, setData] = useState<any>(null);
   const navigate = useNavigate(); // Initialize useNavigate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setIsLoadingCode(true);
 
     try {
-      // Validate form
       if (!email || !password || !confirmPassword) {
         throw new Error('All fields are required');
       }
@@ -40,16 +41,13 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // Generate a simple username from email
       const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
       const tempUsername = `${baseUsername}_${Date.now().toString(36)}`;
 
-      // Attempt signup
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // Important: Update this path to match your route structure
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             username: tempUsername,
@@ -61,20 +59,37 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
       if (signUpError) throw signUpError;
 
-      // Store the signup data
-      setData(signUpData);
+      // Extract the code from the session if available
+      const code = signUpData?.user?.confirmation_sent_at 
+        ? await getVerificationCode(signUpData)
+        : null;
+      
+      setVerificationCode(code);
       setShowVerificationMessage(true);
+      setData(signUpData);
 
     } catch (err) {
       console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
     } finally {
-      setLoading(false);
+      setIsLoadingCode(false);
+    }
+  };
+
+  // Function to get verification code
+  const getVerificationCode = async (signUpData: any) => {
+    try {
+      // The code should be the last 6 characters of the access token
+      return signUpData?.session?.access_token?.slice(-6) || null;
+    } catch (error) {
+      console.error('Error getting verification code:', error);
+      return null;
     }
   };
 
   const handleResendEmail = async () => {
     try {
+      setIsLoadingCode(true);
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email,
@@ -89,6 +104,8 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
     } catch (err) {
       console.error('Resend error:', err);
       toast.error('Failed to resend verification email');
+    } finally {
+      setIsLoadingCode(false);
     }
   };
 
@@ -99,22 +116,28 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         onClose={() => setShowSignUp(false)}
         title="Verify Your Email"
       >
-        <div className="p-6">
-          <div className="text-center mb-6">
-            <Mail className="w-12 h-12 text-purple-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
-            <p className="text-gray-600">
-              We've sent a verification link to:
-            </p>
-            <p className="font-semibold text-lg mt-2 mb-4">{email}</p>
+        <div className="text-center p-6">
+          <h2 className="text-2xl font-bold mb-4">Verify Your Email</h2>
+          <div className="mb-6">
+            <div className="w-16 h-16 mx-auto mb-4">
+              <Mail className="w-full h-full text-purple-600" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Check Your Email</h3>
+            <p className="text-gray-600">We've sent a verification link to:</p>
+            <p className="font-medium text-purple-600 mt-1">{email}</p>
           </div>
 
           <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
             <p className="font-semibold text-purple-800 mb-2">Or use this verification code:</p>
             <div className="bg-white p-3 rounded border border-purple-200">
               <p className="font-mono text-lg text-center">
-                {/* Display the token from the session */}
-                {data?.session?.access_token?.slice(-6) || 'Loading...'}
+                {isLoadingCode ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : verificationCode ? (
+                  verificationCode
+                ) : (
+                  <span className="text-gray-400">Code not available</span>
+                )}
               </p>
             </div>
             <button
@@ -125,15 +148,16 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
             </button>
           </div>
 
-          <div className="text-sm text-gray-500 text-center">
-            <p>Can't find the email? Check your spam folder or</p>
-            <button
-              onClick={handleResendEmail}
-              className="text-purple-600 hover:text-purple-700 font-medium mt-2"
-            >
-              Resend verification email
-            </button>
-          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Can't find the email? Check your spam folder or
+          </p>
+          <button
+            onClick={handleResendEmail}
+            className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+            disabled={isLoadingCode}
+          >
+            Resend verification email
+          </button>
         </div>
       </AuthModal>
     );
