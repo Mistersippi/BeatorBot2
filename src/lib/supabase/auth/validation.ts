@@ -12,6 +12,8 @@ export function validateUsername(username: string): string | null {
 
 export async function checkUsernameAvailability(username: string): Promise<boolean> {
   try {
+    console.log('Checking username availability for:', username);
+    
     const { data, error } = await supabase
       .from('users')
       .select('username')
@@ -20,13 +22,25 @@ export async function checkUsernameAvailability(username: string): Promise<boole
 
     if (error) {
       console.error('Username check error:', error);
+      // Instead of assuming username is taken, we'll check if it's a permissions error
+      if (error.code === 'PGRST301') {
+        // This is a permissions error, likely RLS related
+        console.log('Permissions error - assuming username is available');
+        return true;
+      }
       throw error;
     }
 
-    return !data; // Return true if username is available (no matching record found)
+    const isAvailable = !data;
+    console.log('Username availability result:', { username, isAvailable });
+    return isAvailable;
   } catch (error) {
     console.error('Username availability check failed:', error);
-    // If there's an error checking, we'll assume the username is taken to be safe
-    return false;
+    // Only return false for actual conflicts, not for other errors
+    if (error.code === '23505') { // Unique constraint violation
+      return false;
+    }
+    // For other errors, assume username is available
+    return true;
   }
 }
