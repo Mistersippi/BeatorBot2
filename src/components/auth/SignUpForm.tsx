@@ -55,44 +55,44 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
+      // Validate form
+      if (!email || !password || !confirmPassword || !username) {
+        throw new Error('All fields are required');
+      }
       if (password !== confirmPassword) {
-        setError('Passwords do not match');
-        return;
+        throw new Error('Passwords do not match');
       }
-
       if (!terms) {
-        setError('Please confirm you have read and accept the Terms of Service and Privacy Policy');
-        return;
+        throw new Error('You must accept the terms and conditions');
       }
 
-      if (username) {
-        const validationError = validateUsername(username);
-        if (validationError) {
-          setUsernameError(validationError);
-          return;
-        }
-
-        const isAvailable = await checkUsernameAvailability(username);
-        if (!isAvailable) {
-          setUsernameError('Username already taken');
-          return;
-        }
+      // Check username availability
+      const usernameAvailable = await checkUsernameAvailability(username);
+      if (!usernameAvailable) {
+        throw new Error('Username is already taken');
       }
 
-      await signUp(email, password, {
-        username: username || email.split('@')[0]
-      });
-
-      // Always show verification message since email confirmation is required
-      setShowVerificationMessage(true);
+      // Attempt signup
+      const { requiresEmailConfirmation } = await signUp(email, password, { username });
+      
+      if (requiresEmailConfirmation) {
+        setShowVerificationMessage(true);
+      }
+      
+      // Clear form
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setUsername('');
+      setNewsletter(false);
+      setTerms(false);
       
     } catch (err) {
-      console.error('Signup error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create account');
+      setError(err instanceof Error ? err.message : 'An error occurred during sign up');
     } finally {
       setLoading(false);
     }

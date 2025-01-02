@@ -95,39 +95,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async (
-    email: string, 
-    password: string, 
-    metadata?: { username?: string }
-  ) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: metadata?.username || email.split('@')[0],
-            pending_email_verification: true
+  const signUp = useCallback(
+    async (email: string, password: string, metadata?: { username?: string }) => {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              username: metadata?.username,
+            },
           },
-        },
-      });
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Always return true for email confirmation since Supabase requires it
-      const requiresEmailConfirmation = true;
-      
-      if (!requiresEmailConfirmation && data.user) {
-        await syncUserProfile(data.user);
-        setUser(data.user as AuthUser);
+        // If sign up successful and we have a session, create the user profile
+        if (data.user) {
+          await syncUserProfile(data.user);
+        }
+
+        // Return whether email confirmation is required
+        return {
+          requiresEmailConfirmation: data.user?.identities?.length === 0,
+        };
+      } catch (error) {
+        console.error('Sign up error:', error);
+        throw error;
       }
-      
-      return { requiresEmailConfirmation };
-    } catch (error) {
-      console.error('Sign up error:', error);
-      throw error;
-    }
-  }, []);
+    },
+    []
+  );
 
   const handleSignOut = useCallback(async () => {
     try {
