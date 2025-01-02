@@ -1,4 +1,4 @@
-import { supabase } from '../client';
+import { supabase, supabaseAdmin } from '../client';
 
 export function validateUsername(username: string): string | null {
   if (!username) return 'Username is required';
@@ -14,7 +14,10 @@ export async function checkUsernameAvailability(username: string): Promise<boole
   try {
     console.log('Checking username availability for:', username);
     
-    const { data, error } = await supabase
+    // Use admin client if available, otherwise fall back to regular client
+    const client = supabaseAdmin || supabase;
+    
+    const { data, error } = await client
       .from('users')
       .select('username')
       .eq('username', username)
@@ -24,7 +27,6 @@ export async function checkUsernameAvailability(username: string): Promise<boole
       console.error('Username check error:', error);
       // Instead of assuming username is taken, we'll check if it's a permissions error
       if (error.code === 'PGRST301') {
-        // This is a permissions error, likely RLS related
         console.log('Permissions error - assuming username is available');
         return true;
       }
@@ -32,7 +34,7 @@ export async function checkUsernameAvailability(username: string): Promise<boole
     }
 
     const isAvailable = !data;
-    console.log('Username availability result:', { username, isAvailable });
+    console.log('Username availability result:', { username, isAvailable, data });
     return isAvailable;
   } catch (error) {
     console.error('Username availability check failed:', error);

@@ -20,7 +20,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     flowType: 'pkce',
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    debug: true // Enable debug mode
   },
   global: {
     headers: {
@@ -46,7 +47,8 @@ supabase.auth.setSession({
 });
 
 // Set up auth redirect URL
-supabase.auth.onAuthStateChange((event, _session) => {
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth state changed:', event, session); // Add logging
   if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
     window.location.href = siteUrl;
   }
