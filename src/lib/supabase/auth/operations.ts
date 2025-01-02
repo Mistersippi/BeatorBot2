@@ -404,11 +404,23 @@ export async function updateUsername(username: string) {
 
 export async function checkUsernameAvailability(username: string) {
   try {
+    console.log('Checking availability for username:', username);
+    
+    // Add basic validation
+    if (!username || username.length < 3) {
+      return {
+        available: false,
+        error: new Error('Username must be at least 3 characters long')
+      };
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('username')
       .eq('username', username)
       .maybeSingle();
+
+    console.log('Username check result:', { data, error });
 
     if (error) {
       throw error;

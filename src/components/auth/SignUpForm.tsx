@@ -38,35 +38,45 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // More robust username generation with retries
+      // More robust username generation with retries and logging
       let tempUsername = '';
       let isUsernameAvailable = false;
       let attempts = 0;
       const maxAttempts = 5;
 
       while (!isUsernameAvailable && attempts < maxAttempts) {
-        const timestamp = Date.now().toString(36);
-        const random = Math.random().toString(36).substring(2, 8); // Increased random string length
-        tempUsername = `user_${timestamp}${random}`;
+        // Use email prefix as base for username
+        const emailPrefix = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
+        const random = Math.random().toString(36).substring(2, 6).toLowerCase();
+        tempUsername = `${emailPrefix}_${random}`;
+
+        console.log(`Attempt ${attempts + 1}: Trying username "${tempUsername}"`);
 
         const { available, error: usernameError } = await checkUsernameAvailability(tempUsername);
         
         if (usernameError) {
           console.error('Username check error:', usernameError);
-        } else if (available) {
-          isUsernameAvailable = true;
-          break;
+        } else {
+          console.log(`Username "${tempUsername}" available:`, available);
+          if (available) {
+            isUsernameAvailable = true;
+            break;
+          }
         }
         
         attempts++;
+        // Add small delay between attempts
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       if (!isUsernameAvailable) {
-        throw new Error('Unable to generate a unique username. Please try again.');
+        throw new Error(`Unable to generate a unique username after ${maxAttempts} attempts. Please try again.`);
       }
 
+      console.log('Final username:', tempUsername);
+
       // Attempt signup with the verified unique username
-      const { requiresEmailConfirmation, error: signUpError } = await signUp(email, password, { 
+      const signupResult = await signUp(email, password, { 
         username: tempUsername,
         metadata: {
           newsletter: newsletter,
@@ -74,11 +84,13 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         }
       });
 
-      if (signUpError) {
-        throw signUpError;
+      console.log('Signup result:', signupResult);
+
+      if (signupResult.error) {
+        throw signupResult.error;
       }
 
-      if (requiresEmailConfirmation) {
+      if (signupResult.requiresEmailConfirmation) {
         setShowVerificationMessage(true);
       } else {
         setEmail('');
