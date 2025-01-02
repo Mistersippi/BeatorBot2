@@ -4,8 +4,12 @@ import { supabase } from '../../lib/supabase/client';
 import { syncUserProfile } from '../../lib/supabase/auth';
 
 interface AuthUser extends User {
-  username?: string;
-  role?: string;
+  username: string;
+  account_type: 'user' | 'admin';
+  has_set_username: boolean;
+  account_status: 'active' | 'suspended' | 'deleted';
+  avatar_url?: string | null;
+  bio?: string | null;
 }
 
 interface AuthContextType {

@@ -10,7 +10,7 @@ import { FileInput } from './components/FileInput';
 import { AdvancedTags } from './components/AdvancedTags';
 import { uploadAudioTrack, uploadTrackArtwork } from '../../lib/supabase/storage';
 import { supabase } from '../../lib/supabase/client';
-import { DEFAULT_TRACK_IMAGE, GENRES, SUBGENRES } from '../../lib/constants';
+import { DEFAULT_TRACK_IMAGE, GENRES, SUBGENRES, AUDIO_BUCKET, IMAGE_BUCKET } from '../../lib/constants';
 import { SubmissionSuccess } from './SubmissionSuccess';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB for audio
@@ -122,100 +122,38 @@ export function SubmitForm() {
   }, [selectedGenre, setValue]);
 
   const onSubmit = async (data: SubmitFormData) => {
-    if (!data.audioTrack || !data.title || !data.artistName || !data.genre || !data.hasRights) {
-      setSubmitError('Please fill in all required fields');
-      return;
-    }
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    const uploadStatus = document.getElementById('uploadStatus');
     try {
-      setIsSubmitting(true);
-      setSubmitError(null);
-
-      // Debug: Check authentication status
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!user || authError) {
-        throw new Error('You must be logged in to submit a track');
-      }
-      console.log('Current user:', user);
-      console.log('User ID:', user.id);
-
-      if (uploadStatus) {
-        uploadStatus.textContent = 'Uploading audio track...';
-      }
-
-      // Debug: Log upload attempt
-      console.log('Starting audio upload...');
-      console.log('Upload attempt by user:', user);
-
       // Upload audio track
-      let audioUrl;
-      try {
-        const storagePath = await uploadAudioTrack(data.audioTrack);
-        const { data: { publicUrl } } = supabase.storage
-          .from(storagePath.split('/')[0])
-          .getPublicUrl(storagePath.split('/')[1]);
-        audioUrl = publicUrl;
-      } catch (error) {
-        console.error('Audio upload failed:', error);
-        throw new Error(error instanceof Error ? error.message : 'Failed to upload audio track');
-      }
+      const { url: audioUrl, path: audioPath } = await uploadAudioTrack(data.audioTrack);
 
-      // Handle cover image
-      let imageUrl = DEFAULT_TRACK_IMAGE;
+      // Upload cover image if provided
+      let imageUrl: string | null = null;
+      let imagePath: string | null = null;
       if (data.coverImage) {
-        if (uploadStatus) {
-          uploadStatus.textContent = 'Uploading cover image...';
-        }
-        try {
-          const storagePath = await uploadTrackArtwork(data.coverImage);
-          const { data: { publicUrl } } = supabase.storage
-            .from(storagePath.split('/')[0])
-            .getPublicUrl(storagePath.split('/')[1]);
-          imageUrl = publicUrl;
-        } catch (error) {
-          console.error('Image upload failed:', error);
-          // Don't throw here, just use default image
-          imageUrl = DEFAULT_TRACK_IMAGE;
-        }
+        const imageResult = await uploadTrackArtwork(data.coverImage);
+        imageUrl = imageResult.url;
+        imagePath = imageResult.path;
       }
 
-      if (uploadStatus) {
-        uploadStatus.textContent = 'Saving track information...';
-      }
+      // Get user ID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('User not found');
 
-      // Log the data we're about to submit
-      console.log('Submitting track data:', {
+      // Create submission
+      const submission: Database['public']['Tables']['submissions']['Insert'] = {
+        user_id: user.id,
         title: data.title,
         artist_name: data.artistName,
-        is_ai_generated: data.isAiGenerated,
         genre: data.genre,
         subgenre: data.subgenre,
-        description: data.description || '',
+        description: data.description || null,
         audio_url: audioUrl,
         image_url: imageUrl,
-        spotify_url: data.spotifyUrl || null,
-        apple_music_url: data.appleMusicUrl || null,
-        artist_website: data.artistWebsite || null,
-        mood_tags: data.moodTags,
-        activity_tags: data.activityTags,
-        time_of_day: data.timeOfDay,
-        energy_level: data.energyLevel,
-        weather_vibe: data.weatherVibe,
-        status: 'pending'
-      });
-
-      // Insert track data into database
-      const { data: submissionData, error: dbError } = await supabase.from('submissions').insert({
-        user_id: user.id,  // This ID matches your users table primary key
-        title: data.title,
-        artist_name: data.artistName,
         is_ai_generated: data.isAiGenerated,
-        genre: data.genre,
-        subgenre: data.subgenre,
-        description: data.description || '',
-        audio_url: audioUrl,
-        image_url: imageUrl,
         spotify_url: data.spotifyUrl || null,
         apple_music_url: data.appleMusicUrl || null,
         artist_website: data.artistWebsite || null,
@@ -225,30 +163,34 @@ export function SubmitForm() {
         energy_level: data.energyLevel,
         weather_vibe: data.weatherVibe,
         status: 'pending',
-        metadata: {} // Keep metadata for future use
-      }).select();
+        metadata: {
+          audio_path: audioPath,
+          image_path: imagePath,
+          submission_date: new Date().toISOString()
+        }
+      };
 
-      if (dbError) {
-        console.error('Database error:', dbError);
-        throw new Error(`Failed to save track information: ${dbError.message}`);
+      const { error: submitError } = await supabase
+        .from('submissions')
+        .insert([submission]);
+
+      if (submitError) {
+        // If submission fails, clean up uploaded files
+        if (audioPath) {
+          await supabase.storage.from(AUDIO_BUCKET).remove([audioPath]);
+        }
+        if (imagePath) {
+          await supabase.storage.from(IMAGE_BUCKET).remove([imagePath]);
+        }
+        throw submitError;
       }
 
-      console.log('Track submitted successfully:', submissionData);
-
-      // Show success modal instead of navigating
       setShowSuccess(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Submission error:', error);
-      setSubmitError(
-        error instanceof Error 
-          ? error.message 
-          : 'Failed to submit track. Please try again.'
-      );
+      setSubmitError(error.message || 'Failed to submit track');
     } finally {
       setIsSubmitting(false);
-      if (uploadStatus) {
-        uploadStatus.textContent = '';
-      }
     }
   };
 

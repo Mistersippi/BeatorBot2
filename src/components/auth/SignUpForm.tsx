@@ -38,11 +38,28 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // Generate a random temporary username
-      const tempUsername = `user_${Math.random().toString(36).substring(2, 10)}`;
+      // Generate a unique temporary username based on timestamp and random string
+      const timestamp = Date.now().toString(36);
+      const random = Math.random().toString(36).substring(2, 6);
+      const tempUsername = `user_${timestamp}${random}`;
+
+      // Validate username availability
+      const { available, error: usernameError } = await checkUsernameAvailability(tempUsername);
+      if (usernameError) {
+        throw usernameError;
+      }
+      if (!available) {
+        throw new Error('Failed to generate unique username. Please try again.');
+      }
 
       // Attempt signup
-      const { requiresEmailConfirmation, error: signUpError } = await signUp(email, password, { username: tempUsername });
+      const { requiresEmailConfirmation, error: signUpError } = await signUp(email, password, { 
+        username: tempUsername,
+        metadata: {
+          newsletter: newsletter,
+          signup_completed: false
+        }
+      });
 
       if (signUpError) {
         throw signUpError;

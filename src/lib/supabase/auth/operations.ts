@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../client';
-import { validateUsername, checkUsernameAvailability } from './validation';
+import { validateUsername } from './validation';
 import { User, AuthError, AuthResponse } from '@supabase/supabase-js';
+import type { Database } from '../../database.types';
 
 interface SignUpResponse {
   data: AuthResponse['data'] | null;
@@ -16,7 +17,18 @@ export async function signUpWithEmail(
 ): Promise<SignUpResponse> {
   try {
     // Generate a temporary username if not provided
-    let username = metadata?.username || `user_${Math.random().toString(36).substring(2, 10)}`;
+    let username = metadata?.username;
+    
+    if (!username) {
+      // Generate a valid username that starts with 'user_' followed by alphanumeric characters
+      username = `user_${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    // Validate the username format
+    const validationError = validateUsername(username);
+    if (validationError) {
+      throw new Error(validationError);
+    }
     
     // Ensure username is unique by adding random suffix if needed
     let isUnique = false;
@@ -107,17 +119,21 @@ export async function syncUserProfile(user: User) {
       .from('users')
       .select('*')
       .eq('email', user.email)
-      .single();
+      .single<Database['public']['Tables']['users']['Row'] | null>();
 
     if (findError && findError.code !== 'PGRST116') { // PGRST116 means not found
       throw findError;
     }
 
-    const userData = {
+    const userData: Database['public']['Tables']['users']['Update'] = {
       auth_id: user.id,
       email: user.email,
-      username: user.user_metadata.username || user.email.split('@')[0],
-      has_set_username: user.user_metadata.has_set_username || false,
+      username: user.user_metadata.username || `user_${Math.random().toString(36).substring(2, 8)}`,
+      avatar_url: user.user_metadata.avatar_url || null,
+      has_set_username: !!existingUser?.username,
+      account_status: 'active',
+      account_type: 'user',
+      metadata: {}
     };
 
     if (existingUser) {
@@ -139,7 +155,7 @@ export async function syncUserProfile(user: User) {
       // Insert new user
       const { data, error } = await supabase
         .from('users')
-        .insert(userData)
+        .insert([userData])  // Wrap userData in an array
         .select()
         .single();
 
@@ -192,7 +208,10 @@ export async function createUserProfile(user: any) {
         auth_id: user.id,
         email: user.email,
         username,
-        metadata: {}
+        has_set_username: true,
+        metadata: {},
+        account_status: 'active',
+        account_type: 'user'
       });
 
     if (profileError) {
@@ -320,6 +339,65 @@ export async function inviteUser(email: string) {
       data: null, 
       error: error as AuthError | Error,
       message: error instanceof Error ? error.message : 'An unexpected error occurred'
+    };
+  }
+}
+
+/**
+ * Updates a user's username and marks it as set
+ * @param username - The new username to set
+ * @returns The updated user data or throws an error
+ */
+export async function updateUsername(username: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Validate username format
+    const validationError = validateUsername(username);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+
+    // Check if username is already taken
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (existingUser) throw new Error('Username is already taken');
+
+    // Update auth metadata
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: { 
+        username,
+        has_set_username: true
+      }
+    });
+
+    if (metadataError) throw metadataError;
+
+    // Update user profile
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({
+        username,
+        has_set_username: true
+      })
+      .eq('auth_id', user.id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+    return { data: updatedUser, error: null };
+
+  } catch (error) {
+    console.error('Error updating username:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error('Unknown error occurred')
     };
   }
 }

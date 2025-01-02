@@ -1,34 +1,98 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
-import { Track } from './types';
+import { Play, Pause, Volume2, VolumeX, AlertCircle } from 'lucide-react';
+import { GameTrack, AudioPlayerState } from './types';
 
 interface AudioPlayerProps {
-  track: Track;
+  track: GameTrack;
 }
 
 export function AudioPlayer({ track }: AudioPlayerProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [state, setState] = useState<AudioPlayerState>({
+    isPlaying: false,
+    isMuted: false,
+    currentTime: 0,
+    duration: track.duration,
+    volume: 1
+  });
+
+  const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Reset state when track changes
+    setState(prev => ({
+      ...prev,
+      isPlaying: false,
+      currentTime: 0,
+      duration: track.duration
+    }));
+
+    // Set up audio event listeners
+    const handlePlay = () => setState(prev => ({ ...prev, isPlaying: true }));
+    const handlePause = () => setState(prev => ({ ...prev, isPlaying: false }));
+    const handleTimeUpdate = () => setState(prev => ({ ...prev, currentTime: audio.currentTime }));
+    const handleDurationChange = () => setState(prev => ({ ...prev, duration: audio.duration }));
+    const handleVolumeChange = () => setState(prev => ({ ...prev, volume: audio.volume }));
+    const handleEnded = () => setState(prev => ({ ...prev, isPlaying: false, currentTime: 0 }));
+    const handleError = (e: ErrorEvent) => {
+      console.error('Audio error:', e);
+      setError('Failed to load audio. Please try again.');
+    };
+
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('volumechange', handleVolumeChange);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
+
+    return () => {
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('volumechange', handleVolumeChange);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+    };
+  }, [track]);
+
   const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    if (!audioRef.current) return;
+    
+    if (state.isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(err => {
+        console.error('Playback error:', err);
+        setError('Failed to play audio. Please try again.');
+      });
     }
   };
 
   const toggleMute = () => {
-    if (audioRef.current) {
-      audioRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
+    if (!audioRef.current) return;
+    audioRef.current.muted = !state.isMuted;
+    setState(prev => ({ ...prev, isMuted: !prev.isMuted }));
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    const time = parseFloat(e.target.value);
+    audioRef.current.currentTime = time;
+    setState(prev => ({ ...prev, currentTime: time }));
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    const volume = parseFloat(e.target.value);
+    audioRef.current.volume = volume;
+    setState(prev => ({ ...prev, volume }));
   };
 
   const formatTime = (time: number) => {
@@ -37,69 +101,67 @@ export function AudioPlayer({ track }: AudioPlayerProps) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    audio.addEventListener('timeupdate', updateTime);
-    return () => audio.removeEventListener('timeupdate', updateTime);
-  }, []);
-
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
-      <div className="flex items-center space-x-6">
-        <motion.img
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          src={track.imageUrl}
-          alt={track.title}
-          className="w-24 h-24 rounded-lg object-cover shadow-md"
-        />
-        
-        <div className="flex-1">
-          <h3 className="text-xl font-semibold mb-1">{track.title}</h3>
-          <p className="text-gray-600 mb-4">{track.artist}</p>
-          
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={togglePlay}
-              className="p-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-            </button>
-            
-            <div className="flex-1">
-              <div className="h-2 bg-gray-200 rounded-full">
-                <motion.div
-                  className="h-full bg-purple-600 rounded-full"
-                  style={{ width: `${(currentTime / track.duration) * 100}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-sm text-gray-600 mt-1">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(track.duration)}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={toggleMute}
-              className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </div>
-      
       <audio
         ref={audioRef}
-        src={track.audioUrl}
-        preload="metadata"
-        onEnded={() => setIsPlaying(false)}
+        src={track.audio_url}
+        preload="auto"
+        onError={() => setError('Failed to load audio')}
       />
+
+      {error && (
+        <div className="flex items-center space-x-2 text-red-600 mb-4">
+          <AlertCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="flex items-center space-x-6">
+        <button
+          onClick={togglePlay}
+          className="p-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
+          disabled={!!error}
+        >
+          {state.isPlaying ? <Pause size={24} /> : <Play size={24} />}
+        </button>
+
+        <div className="flex-1">
+          <input
+            type="range"
+            min={0}
+            max={state.duration}
+            value={state.currentTime}
+            onChange={handleSeek}
+            className="w-full"
+            disabled={!!error}
+          />
+          <div className="flex justify-between text-sm text-gray-500 mt-1">
+            <span>{formatTime(state.currentTime)}</span>
+            <span>{formatTime(state.duration)}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={toggleMute}
+            className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
+            disabled={!!error}
+          >
+            {state.isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.1}
+            value={state.volume}
+            onChange={handleVolumeChange}
+            className="w-20"
+            disabled={!!error}
+          />
+        </div>
+      </div>
     </div>
   );
 }

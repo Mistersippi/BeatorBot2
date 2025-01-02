@@ -5,183 +5,113 @@ const AUDIO_BUCKET = 'audio-tracks';
 const IMAGE_BUCKET = 'track-artwork';
 const MAX_IMAGE_SIZE = 500; // Max dimension in pixels
 
+interface UploadResult {
+  url: string;
+  path: string;
+}
+
+interface StorageError extends Error {
+  statusCode?: number;
+  details?: string;
+}
+
 async function verifyBucketAccess(bucketName: string): Promise<void> {
-  console.log('Starting verifyBucketAccess for bucket:', bucketName);
-  console.log('Supabase client:', supabase);
-  
   try {
-    // First verify authentication
-    console.log('Checking authentication...');
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    console.log('Current user in verifyBucketAccess:', user);
-    console.log('Auth error in verifyBucketAccess:', authError);
     
     if (authError || !user) {
-      console.error('Authentication failed:', { authError, user });
       throw new Error('You must be logged in to upload files');
     }
 
-    // Then verify bucket exists and is accessible
-    console.log('Checking buckets...');
     const { data: buckets, error } = await supabase.storage.listBuckets();
-    console.log('Available buckets:', buckets);
-    console.log('Bucket error:', error);
     
     if (error) {
-      console.error('Storage error:', error);
-      if (error.message.includes('security policy')) {
-        throw new Error(
-          'Storage access denied. Please ensure storage policies are set up:\n' +
-          '1. Go to Supabase Dashboard > Storage\n' +
-          '2. Click on bucket name\n' +
-          '3. Go to "Policies" tab\n' +
-          '4. Add policies for authenticated uploads and public downloads'
-        );
-      }
-      throw new Error(`Error accessing storage: ${error.message}`);
+      const storageError: StorageError = new Error(`Storage error: ${error.message}`);
+      storageError.statusCode = error.status || 500;
+      storageError.details = error.details || undefined;
+      throw storageError;
     }
 
     const bucketExists = buckets?.some(b => b.name === bucketName);
-    console.log(`Checking if bucket ${bucketName} exists:`, bucketExists);
-    console.log('All bucket names:', buckets?.map(b => b.name));
     
     if (!bucketExists) {
-      throw new Error(
-        `Storage bucket "${bucketName}" not found. Please ensure it exists in your Supabase dashboard:\n` +
-        '1. Go to Supabase Dashboard > Storage\n' +
-        '2. Click "Create new bucket"\n' +
-        `3. Create bucket named "${bucketName}"\n` +
-        '4. Enable public access'
-      );
+      const configError: StorageError = new Error(`Storage bucket "${bucketName}" not found`);
+      configError.details = 'Please configure storage buckets in Supabase dashboard';
+      throw configError;
     }
-
-    // Try to list files in the bucket to verify access
-    console.log('Trying to list files in bucket...');
-    const { data: files, error: listError } = await supabase.storage
-      .from(bucketName)
-      .list();
-    console.log('Files in bucket:', files);
-    console.log('List error:', listError);
-
   } catch (error) {
-    console.error(`Error verifying bucket ${bucketName}:`, error);
+    console.error('Storage access verification failed:', error);
     throw error;
   }
 }
 
-export async function uploadAudioTrack(file: File): Promise<string> {
-  try {
-    // Validate file
-    if (!file) throw new Error('No audio file provided');
-    if (!file.type.includes('audio')) throw new Error('Invalid audio file type');
+export async function uploadAudioTrack(file: File): Promise<UploadResult> {
+  await verifyBucketAccess(AUDIO_BUCKET);
 
-    // Verify bucket access
-    await verifyBucketAccess(AUDIO_BUCKET);
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    // Upload file with retry logic
-    let retries = 3;
-    let lastError = null;
-
-    while (retries > 0) {
-      try {
-        const { data, error } = await supabase.storage
-          .from(AUDIO_BUCKET)
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (error) {
-          if (error.message.includes('security policy')) {
-            throw new Error(
-              'Upload denied. Please ensure storage policies allow authenticated uploads:\n' +
-              '1. Go to Supabase Dashboard > Storage > audio-tracks\n' +
-              '2. Click "Policies"\n' +
-              '3. Add policy for INSERT with (auth.role() = \'authenticated\')'
-            );
-          }
-          throw error;
-        }
-
-        // Return the storage path instead of public URL
-        return `${AUDIO_BUCKET}/${filePath}`;
-      } catch (error) {
-        lastError = error;
-        retries--;
-        if (retries > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-        }
-      }
-    }
-
-    throw lastError;
-  } catch (error) {
-    console.error('Audio upload error:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to upload audio file');
+  const fileExt = file.name.split('.').pop()?.toLowerCase();
+  if (!fileExt || !['mp3', 'wav', 'ogg'].includes(fileExt)) {
+    throw new Error('Invalid audio file format. Supported formats: MP3, WAV, OGG');
   }
+
+  const fileName = `${uuidv4()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error('Audio upload failed:', error);
+    throw new Error(`Failed to upload audio: ${error.message}`);
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(AUDIO_BUCKET)
+    .getPublicUrl(filePath);
+
+  return {
+    url: publicUrl,
+    path: filePath
+  };
 }
 
-export async function uploadTrackArtwork(file: File): Promise<string> {
-  try {
-    // Validate file
-    if (!file) throw new Error('No image file provided');
-    if (!file.type.includes('image')) throw new Error('Invalid image file type');
+export async function uploadTrackArtwork(file: File): Promise<UploadResult> {
+  await verifyBucketAccess(IMAGE_BUCKET);
 
-    // Verify bucket access
-    await verifyBucketAccess(IMAGE_BUCKET);
-
-    // First, resize the image
-    const resizedImage = await resizeImage(file, MAX_IMAGE_SIZE);
-    
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    // Upload file with retry logic
-    let retries = 3;
-    let lastError = null;
-
-    while (retries > 0) {
-      try {
-        const { data, error } = await supabase.storage
-          .from(IMAGE_BUCKET)
-          .upload(filePath, resizedImage, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (error) {
-          if (error.message.includes('security policy')) {
-            throw new Error(
-              'Upload denied. Please ensure storage policies allow authenticated uploads:\n' +
-              '1. Go to Supabase Dashboard > Storage > track-artwork\n' +
-              '2. Click "Policies"\n' +
-              '3. Add policy for INSERT with (auth.role() = \'authenticated\')'
-            );
-          }
-          throw error;
-        }
-
-        // Return the storage path instead of public URL
-        return `${IMAGE_BUCKET}/${filePath}`;
-      } catch (error) {
-        lastError = error;
-        retries--;
-        if (retries > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-        }
-      }
-    }
-
-    throw lastError;
-  } catch (error) {
-    console.error('Image upload error:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to upload image file');
+  const fileExt = file.name.split('.').pop()?.toLowerCase();
+  if (!fileExt || !['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+    throw new Error('Invalid image format. Supported formats: JPG, PNG, WebP');
   }
+
+  // Resize image before upload
+  const resizedImage = await resizeImage(file, MAX_IMAGE_SIZE);
+  const fileName = `${uuidv4()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .upload(filePath, resizedImage, {
+      contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error('Image upload failed:', error);
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(IMAGE_BUCKET)
+    .getPublicUrl(filePath);
+
+  return {
+    url: publicUrl,
+    path: filePath
+  };
 }
 
 async function resizeImage(file: File, maxDimension: number): Promise<Blob> {

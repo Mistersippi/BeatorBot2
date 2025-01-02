@@ -13,21 +13,30 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        console.log('Starting auth callback handling');
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
         const code = searchParams.get('code');
+        
+        console.log('Auth callback params:', { error: errorParam, code: !!code });
         
         if (errorParam) {
           throw new Error(errorDescription || 'Authentication error');
         }
 
-        // Get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
+        // If we have a code, exchange it for a session
+        if (code) {
+          console.log('Exchanging code for session');
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
 
-        if (session?.user) {
+          if (!data.session?.user) {
+            throw new Error('No session found after code exchange');
+          }
+
           // Sync user profile
-          await syncUserProfile(session.user);
+          console.log('Syncing user profile');
+          await syncUserProfile(data.session.user);
           
           // Show success message
           toast.success('Email verified successfully!', {
@@ -40,18 +49,14 @@ export default function AuthCallback() {
           return;
         }
 
-        // If no session but we have a code, try to exchange it
-        if (code) {
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) throw exchangeError;
+        // Get the current session if no code
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
 
-          if (!data.session?.user) {
-            throw new Error('No session found after code exchange');
-          }
-
+        if (session?.user) {
           // Sync user profile
-          await syncUserProfile(data.session.user);
-
+          await syncUserProfile(session.user);
+          
           // Show success message
           toast.success('Email verified successfully!', {
             duration: 5000,

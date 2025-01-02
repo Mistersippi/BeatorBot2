@@ -12,10 +12,10 @@ export function RequireAdmin({ children }: RequireAdminProps) {
     return <Navigate to="/" replace />;
   }
 
-  // Check for admin role in both places
-  const isAdmin = user?.role === 'admin' || user?.user_metadata?.role === 'admin';
+  // Check if user has admin account type
+  const isAdmin = user?.account_type === 'admin';
   if (!isAdmin) {
-    console.log('Access denied: User is not an admin', { role: user?.role, metadata: user?.user_metadata });
+    console.log('Access denied: User is not an admin', { account_type: user?.account_type });
     return <Navigate to="/" replace />;
   }
 

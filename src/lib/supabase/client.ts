@@ -19,9 +19,39 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    flowType: 'pkce',
     detectSessionInUrl: true,
-    debug: true // Enable debug mode
+    debug: import.meta.env.DEV, // Only enable debug in development
+    flowType: 'pkce',
+    storage: {
+      getItem: (key: string) => {
+        try {
+          if (typeof window === 'undefined') return null;
+          return window.localStorage.getItem(key);
+        } catch (error) {
+          console.error('Error accessing localStorage:', error);
+          return null;
+        }
+      },
+      setItem: (key: string, value: string) => {
+        try {
+          if (typeof window === 'undefined') return;
+          window.localStorage.setItem(key, value);
+        } catch (error) {
+          console.error('Error setting localStorage:', error);
+        }
+      },
+      removeItem: (key: string) => {
+        try {
+          if (typeof window === 'undefined') return;
+          window.localStorage.removeItem(key);
+        } catch (error) {
+          console.error('Error removing from localStorage:', error);
+        }
+      }
+    },
+    auth: {
+      redirectTo: `${siteUrl}/auth/callback`
+    }
   },
   global: {
     headers: {
@@ -40,17 +70,11 @@ export const supabaseAdmin = supabaseServiceRoleKey
     })
   : null;
 
-// Update auth configuration
-supabase.auth.setSession({
-  access_token: '',
-  refresh_token: '',
-});
-
-// Set up auth redirect URL
+// Set up auth configuration
 supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth state changed:', event, session); // Add logging
-  if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-    window.location.href = siteUrl;
+  if (event === 'SIGNED_IN') {
+    console.log('User signed in, redirecting to callback');
   }
 });
 
