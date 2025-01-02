@@ -51,7 +51,7 @@ export async function signUpWithEmail(
 
     // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
@@ -63,7 +63,7 @@ export async function signUpWithEmail(
           pending_email_verification: true,
           has_set_username: false
         },
-        emailRedirectTo: `${redirectUrl}/auth/verify?type=signup`
+        emailRedirectTo: `${redirectUrl}/auth/callback`
       },
     });
 
@@ -213,10 +213,10 @@ export async function sendPasswordResetEmail(email: string) {
 
     // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${redirectUrl}/auth/confirm?type=recovery&next=/account/update-password`
+      redirectTo: `${redirectUrl}/auth/callback?type=recovery&next=/account/update-password`
     });
     
     if (error) throw error;
@@ -236,12 +236,12 @@ export async function sendMagicLink(email: string) {
 
     // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${redirectUrl}/auth/confirm?type=magiclink&next=/`
+        emailRedirectTo: `${redirectUrl}/auth/callback?type=magiclink&next=/`
       }
     });
     
@@ -282,10 +282,10 @@ export async function inviteUser(email: string) {
 
     // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${redirectUrl}/auth/confirm?type=invite&next=/welcome`,
+      redirectTo: `${redirectUrl}/auth/callback?type=invite&next=/welcome`,
       data: {
         invited: true,
         pending_email_verification: true
