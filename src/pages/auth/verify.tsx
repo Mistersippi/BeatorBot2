@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase/client';
+import { verifyOtp } from '../../lib/supabase/auth/operations';
 import toast from 'react-hot-toast';
+import { Mail } from 'lucide-react';
 
 export function VerifyEmail() {
   const [verifying, setVerifying] = useState(true);
@@ -9,28 +11,32 @@ export function VerifyEmail() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const handleVerification = async () => {
       try {
-        // Get the token_hash and type from URL to match Supabase's format
+        // Get token_hash and type from URL
         const token_hash = searchParams.get('token_hash');
-        const type = searchParams.get('type');
+        const type = searchParams.get('type') as 'signup' | 'recovery' | 'invite' | 'email';
 
-        if (!token_hash) {
-          throw new Error('No verification token found');
+        if (!token_hash || !type) {
+          throw new Error('Missing verification parameters');
         }
 
-        // Verify using the exact token_hash from the URL
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: type || 'signup'  // Using 'signup' as the default type
-        });
-
+        // Attempt verification with token
+        const { error } = await verifyOtp(token_hash, type);
         if (error) throw error;
 
-        // If verification successful, show success and redirect
-        toast.success('Email verified successfully!');
-        setVerifying(false);
-        navigate('/profile/settings');
+        // Check if verification was successful
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user?.email_verified) {
+          toast.success('Email verified successfully!');
+          setVerifying(false);
+          navigate('/profile/settings');
+          return;
+        }
+
+        // If we get here, something went wrong
+        throw new Error('Verification failed');
 
       } catch (err) {
         console.error('Verification error:', err);
@@ -39,7 +45,7 @@ export function VerifyEmail() {
       }
     };
 
-    verifyEmail();
+    handleVerification();
   }, [navigate, searchParams]);
 
   if (verifying) {
@@ -48,10 +54,7 @@ export function VerifyEmail() {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
             <div className="flex flex-col items-center justify-center">
-              <svg className="animate-spin h-12 w-12 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
               <p className="mt-4 text-gray-600">Verifying your email...</p>
               <p className="mt-2 text-sm text-gray-500">This may take a few moments</p>
             </div>
@@ -66,11 +69,12 @@ export function VerifyEmail() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center">
+            <Mail className="w-12 h-12 text-purple-600 mx-auto mb-4" />
             <h3 className="text-xl font-medium text-gray-900 mb-4">
               Verification Failed
             </h3>
             <p className="text-sm text-gray-600 mb-6">
-              We couldn't verify your email. Please try again or contact support.
+              We couldn't verify your email. Please try again or check your email for a new verification link.
             </p>
             <button
               onClick={() => window.location.reload()}

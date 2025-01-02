@@ -16,56 +16,14 @@ export async function signUpWithEmail(
   metadata?: { username?: string }
 ): Promise<SignUpResponse> {
   try {
-    // Generate a temporary username if not provided
-    let username = metadata?.username;
-    
-    if (!username) {
-      // Generate a valid username that starts with 'user_' followed by alphanumeric characters
-      username = `user_${Math.random().toString(36).substring(2, 8)}`;
-    }
+    // Generate username if not provided
+    const username = metadata?.username || await generateUsername();
 
-    // Validate the username format
-    const validationError = validateUsername(username);
-    if (validationError) {
-      throw new Error(validationError);
-    }
-    
-    // Ensure username is unique by adding random suffix if needed
-    let isUnique = false;
-    let attempts = 0;
-    const maxAttempts = 5;
+    // Simplify the redirect URL handling
+    const redirectUrl = import.meta.env.PROD 
+      ? 'https://www.beatorbot.com/auth/callback'
+      : `${window.location.origin}/auth/callback`;
 
-    while (!isUnique && attempts < maxAttempts) {
-      const { data, error } = await supabaseAdmin!.from('users')
-        .select('username')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (!data) {
-        isUnique = true;
-      } else {
-        username = `user_${Math.random().toString(36).substring(2, 10)}`;
-        attempts++;
-      }
-    }
-
-    if (!isUnique) {
-      throw new Error('Could not generate unique username');
-    }
-
-    // Get the site URL for email redirect
-    const siteUrl = import.meta.env.VITE_SITE_URL;
-    if (!siteUrl) {
-      console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
-    }
-
-    // Always use production domain for email redirects in production
-    const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
-
-    // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -75,22 +33,15 @@ export async function signUpWithEmail(
           pending_email_verification: true,
           has_set_username: false
         },
-        emailRedirectTo: `${redirectUrl}/auth/callback`
+        emailRedirectTo: redirectUrl
       },
     });
 
-    if (error) {
-      console.error('Supabase signup error:', error);
-      throw error;
-    }
+    if (error) throw error;
 
     // Create user profile immediately after signup
     if (data?.user) {
-      const { error: profileError } = await syncUserProfile(data.user);
-      if (profileError) {
-        console.error('Error syncing user profile:', profileError);
-        throw profileError;
-      }
+      await syncUserProfile(data.user);
     }
 
     return {
@@ -105,6 +56,123 @@ export async function signUpWithEmail(
       error: error as AuthError | Error,
       requiresEmailConfirmation: false
     };
+  }
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Sign in error:', error);
+    return { data: null, error };
+  }
+}
+
+export async function signOut() {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Sign out error:', error);
+    return { error };
+  }
+}
+
+export async function verifyOtp(
+  token_hash: string, 
+  type: 'signup' | 'recovery' | 'invite' | 'email'
+) {
+  try {
+    // Use verifyOtp with token_hash
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type
+    });
+
+    if (error) throw error;
+
+    // If verification successful and we have a user, sync their profile
+    if (data?.user) {
+      // Update user metadata to remove pending flag
+      await supabase.auth.updateUser({
+        data: { 
+          pending_email_verification: false,
+          email_verified: true
+        }
+      });
+
+      // Sync user profile
+      await syncUserProfile(data.user);
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Verification error:', error);
+    return { data: null, error };
+  }
+}
+
+export async function resetPassword(email: string) {
+  try {
+    const redirectUrl = import.meta.env.PROD 
+      ? 'https://www.beatorbot.com/auth/reset-password'
+      : `${window.location.origin}/auth/reset-password`;
+
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return { data: null, error };
+  }
+}
+
+export async function updatePassword(password: string) {
+  try {
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Update password error:', error);
+    return { data: null, error };
+  }
+}
+
+export async function getCurrentUser() {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return { user, error: null };
+  } catch (error) {
+    console.error('Get current user error:', error);
+    return { user: null, error };
+  }
+}
+
+export async function getSession() {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return { session, error: null };
+  } catch (error) {
+    console.error('Get session error:', error);
+    return { session: null, error };
   }
 }
 
@@ -169,28 +237,6 @@ export async function syncUserProfile(user: User) {
   } catch (error) {
     console.error('Error syncing user profile:', error);
     throw error;
-  }
-}
-
-export async function verifyOtp(token: string, type: 'signup' | 'recovery' | 'invite' | 'email', email: string) {
-  try {
-    const { data, error } = await supabase.auth.verifyOtp({
-      token,
-      type,
-      email
-    });
-
-    if (error) throw error;
-
-    // If this is a signup verification, ensure the user profile exists
-    if (type === 'signup' && data?.user) {
-      await syncUserProfile(data.user);
-    }
-
-    return { data, error: null };
-  } catch (error) {
-    console.error('Verification error:', error);
-    return { data: null, error };
   }
 }
 
@@ -284,26 +330,6 @@ export async function sendMagicLink(email: string) {
     return { data, error: null };
   } catch (error) {
     console.error('Magic link error:', error);
-    return { data: null, error };
-  }
-}
-
-export async function updatePassword(newPassword: string) {
-  try {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-
-    if (error) throw error;
-    
-    // After password update, sync the user profile
-    if (data?.user) {
-      await syncUserProfile(data.user);
-    }
-    
-    return { data, error: null };
-  } catch (error) {
-    console.error('Update password error:', error);
     return { data: null, error };
   }
 }
