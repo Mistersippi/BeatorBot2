@@ -102,7 +102,7 @@ export async function syncUserProfile(user: User) {
       throw new Error('User email is required');
     }
 
-    // First try to find existing user
+    // First try to find existing user by email
     const { data: existingUser, error: findError } = await supabase
       .from('users')
       .select('*')
@@ -113,32 +113,33 @@ export async function syncUserProfile(user: User) {
       throw findError;
     }
 
+    const userData = {
+      auth_id: user.id,
+      email: user.email,
+      username: user.user_metadata.username || user.email.split('@')[0],
+      has_set_username: user.user_metadata.has_set_username || false,
+    };
+
     if (existingUser) {
       // Update existing user
       const { data, error } = await supabase
         .from('users')
-        .update({
-          auth_id: user.id,
-          email: user.email,
-          username: existingUser.username || user.user_metadata.username || user.email.split('@')[0],
-          has_set_username: existingUser.has_set_username || user.user_metadata.has_set_username || false,
-        })
+        .update(userData)
         .eq('email', user.email)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating user profile:', error);
+        throw error;
+      }
+
       return data;
     } else {
       // Insert new user
       const { data, error } = await supabase
         .from('users')
-        .insert({
-          auth_id: user.id,
-          email: user.email,
-          username: user.user_metadata.username || user.email.split('@')[0],
-          has_set_username: user.user_metadata.has_set_username || false,
-        })
+        .insert(userData)
         .select()
         .single();
 

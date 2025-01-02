@@ -48,28 +48,27 @@ DROP POLICY IF EXISTS "Allow service role full access" ON public.users;
 -- Create policies
 CREATE POLICY "Users can view their own profile"
 ON public.users FOR SELECT
-USING (
-    auth.uid() = auth_id OR
-    auth.role() = 'service_role'
-);
+TO authenticated
+USING (auth.uid() = auth_id);
 
 CREATE POLICY "Users can update their own profile"
 ON public.users FOR UPDATE
-USING (
-    auth.uid() = auth_id OR
-    auth.role() = 'service_role'
-)
-WITH CHECK (
-    auth.uid() = auth_id OR
-    auth.role() = 'service_role'
-);
+TO authenticated
+USING (auth.uid() = auth_id)
+WITH CHECK (auth.uid() = auth_id);
 
--- Allow anyone to create a profile during signup
-CREATE POLICY "Allow insert during signup"
+-- Allow both anonymous and authenticated users to create profiles
+CREATE POLICY "Allow users to create their profile"
 ON public.users 
 FOR INSERT
-TO public 
-WITH CHECK (true);
+TO anon, authenticated
+WITH CHECK (
+    CASE 
+        WHEN auth.role() = 'authenticated' THEN auth.uid() = auth_id
+        WHEN auth.role() = 'anon' THEN true  -- Allow anonymous users during signup
+        ELSE false
+    END
+);
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS users_auth_id_idx ON public.users(auth_id);
