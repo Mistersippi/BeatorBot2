@@ -59,6 +59,30 @@ export default function VerifyEmail() {
     }
   };
 
+  const handleResendEmail = async () => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup'
+      });
+      
+      if (error) {
+        console.error('Resend error:', error);
+        setError('Failed to resend verification email');
+      } else {
+        setError(null);
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'mb-4 p-4 bg-green-50 text-green-600 rounded-lg';
+        successDiv.textContent = 'Verification email resent!';
+        document.querySelector('form')?.insertAdjacentElement('beforebegin', successDiv);
+        setTimeout(() => successDiv.remove(), 5000);
+      }
+    } catch (err) {
+      console.error('Resend error:', err);
+      setError('Failed to resend verification email');
+    }
+  };
+
   if (verifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -110,10 +134,7 @@ export default function VerifyEmail() {
         <p className="mt-4 text-sm text-center text-gray-600">
           Didn't receive the code?{' '}
           <button
-            onClick={() => {
-              // TODO: Implement resend functionality
-              console.log('Resend verification email');
-            }}
+            onClick={handleResendEmail}
             className="text-purple-600 hover:text-purple-700"
           >
             Resend

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Mail, Lock, Loader } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { supabase } from '../../lib/supabase/client';
+import toast from 'react-hot-toast'; // Import toast
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 interface SignUpFormProps {
   showSignUp: boolean;
@@ -19,6 +21,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
   const [error, setError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
   const [data, setData] = useState(null);
+  const navigate = useNavigate(); // Initialize useNavigate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +73,25 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
     }
   };
 
+  const handleResendEmail = async () => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) {
+        toast.error('Failed to resend verification email');
+        console.error('Resend error:', error);
+      } else {
+        toast.success('Verification email resent!');
+      }
+    } catch (err) {
+      console.error('Resend error:', err);
+      toast.error('Failed to resend verification email');
+    }
+  };
+
   if (showVerificationMessage) {
     return (
       <AuthModal
@@ -86,34 +108,30 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
             </p>
             <p className="font-semibold text-lg mt-2 mb-4">{email}</p>
           </div>
-          
+
           <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-purple-800 mb-2">Or use this verification code:</h3>
-            <p className="font-mono text-lg text-center bg-white p-3 rounded border border-purple-200">
-              {data?.user?.confirmation_sent_at}
-            </p>
-            <p className="text-sm text-purple-700 mt-2">
-              You can enter this code manually at{' '}
-              <a href="/auth/verify" className="underline">
-                the verification page
-              </a>
-            </p>
+            <p className="font-semibold text-purple-800 mb-2">Or use this verification code:</p>
+            <div className="bg-white p-3 rounded border border-purple-200">
+              <p className="font-mono text-lg text-center">
+                {data?.user?.email_token || 'Loading...'}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/auth/verify')}
+              className="mt-3 w-full text-purple-600 hover:text-purple-700 text-sm font-medium"
+            >
+              Go to verification page
+            </button>
           </div>
 
-          <div className="text-sm text-center text-gray-600">
-            <p>Click the link in your email to verify your account.</p>
-            <p className="mt-2">
-              If you don't see it, check your spam folder or{' '}
-              <button
-                onClick={() => {
-                  // TODO: Implement resend functionality
-                  console.log('Resend verification email');
-                }}
-                className="text-purple-600 hover:text-purple-700"
-              >
-                resend the email
-              </button>
-            </p>
+          <div className="text-sm text-gray-500 text-center">
+            <p>Can't find the email? Check your spam folder or</p>
+            <button
+              onClick={handleResendEmail}
+              className="text-purple-600 hover:text-purple-700 font-medium mt-2"
+            >
+              Resend verification email
+            </button>
           </div>
         </div>
       </AuthModal>

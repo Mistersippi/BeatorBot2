@@ -435,3 +435,31 @@ export async function checkUsernameAvailability(username: string) {
     };
   }
 }
+
+export async function signUp(email: string, password: string, options?: any) {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        ...options
+      }
+    });
+
+    if (error) throw error;
+
+    return {
+      data,
+      error: null,
+      requiresEmailConfirmation: true
+    };
+  } catch (error) {
+    console.error('Error signing up:', error);
+    return {
+      data: null,
+      error,
+      requiresEmailConfirmation: false
+    };
+  }
+}
