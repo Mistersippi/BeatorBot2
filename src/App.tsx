@@ -15,6 +15,7 @@ const Challenge = lazy(() => import('./components/game/Challenge').then(module =
 const Results = lazy(() => import('./pages/Results').then(module => ({ default: module.Results })));
 const Submit = lazy(() => import('./pages/Submit/index').then(module => ({ default: module.default })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const ProfileSettings = lazy(() => import('./pages/Profile/ProfileSettings').then(module => ({ default: module.ProfileSettings })));
 const Submissions = lazy(() => import('./pages/Submissions').then(module => ({ default: module.Submissions })));
 const AuthCallback = lazy(() => import('./pages/auth/callback').then(module => ({ default: module.default })));
 const AuthConfirm = lazy(() => import('./pages/auth/confirm').then(module => ({ default: module.default })));
@@ -52,6 +53,7 @@ export default function App() {
               <Route element={<RequireAuth><Outlet /></RequireAuth>}>
                 <Route path="/submit" element={<Submit />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/settings" element={<ProfileSettings />} />
                 <Route path="/submissions" element={<Submissions />} />
               </Route>
 
@@ -79,8 +81,10 @@ export default function App() {
 }
 
 // Loading fallback
-const PageLoader = () => (
-  <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
-    <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
-  </div>
-);
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+    </div>
+  );
+}
