@@ -39,39 +39,36 @@ CREATE OR REPLACE TRIGGER update_users_updated_at
 -- Enable RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.users;
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.users;
-
 -- Drop existing policies
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.users;
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
-DROP POLICY IF EXISTS "Allow authenticated users to create their profile" ON public.users;
+DROP POLICY IF EXISTS "Allow insert during signup" ON public.users;
+DROP POLICY IF EXISTS "Allow service role full access" ON public.users;
 
 -- Create policies
 CREATE POLICY "Users can view their own profile"
 ON public.users FOR SELECT
-TO authenticated
 USING (
-    auth.uid() = auth_id
+    auth.uid() = auth_id OR
+    auth.role() = 'service_role'
 );
 
 CREATE POLICY "Users can update their own profile"
 ON public.users FOR UPDATE
-TO authenticated
-USING (auth.uid() = auth_id)
-WITH CHECK (auth.uid() = auth_id);
+USING (
+    auth.uid() = auth_id OR
+    auth.role() = 'service_role'
+)
+WITH CHECK (
+    auth.uid() = auth_id OR
+    auth.role() = 'service_role'
+);
 
-CREATE POLICY "Allow authenticated users to create their profile"
-ON public.users FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = auth_id);
-
-CREATE POLICY "Allow service role full access"
-ON public.users
-TO service_role
-USING (true)
+-- Allow anyone to create a profile during signup
+CREATE POLICY "Allow insert during signup"
+ON public.users 
+FOR INSERT
+TO public 
 WITH CHECK (true);
 
 -- Create indexes
