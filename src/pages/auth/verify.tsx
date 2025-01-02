@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase/client';
+import { syncUserProfile } from '../../lib/supabase/auth';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -12,59 +13,50 @@ export default function VerifyEmail() {
     async function verifyEmail() {
       try {
         // Get URL parameters
-        const token = searchParams.get('token_hash') || searchParams.get('token');
+        const token = searchParams.get('token');
         const type = searchParams.get('type');
-        const email = searchParams.get('email');
-        const error = searchParams.get('error');
-        const errorDescription = searchParams.get('error_description');
+        const redirectTo = searchParams.get('redirect_to');
 
-        console.log('Verification params:', { token, type, email, error, errorDescription });
+        console.log('Verification params:', { token, type, redirectTo });
 
-        if (error || errorDescription) {
-          throw new Error(errorDescription || error || 'Verification failed');
+        if (!token) {
+          throw new Error('No verification token found');
         }
 
         // If we have a token, verify it
-        if (token) {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: (type || 'signup') as 'signup' | 'email' | 'recovery' | 'invite',
-            email: email as string,
-          });
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: 'signup',
+        });
 
-          if (verifyError) throw verifyError;
+        if (verifyError) throw verifyError;
 
-          // After successful verification, redirect to callback with the same parameters
-          const callbackParams = new URLSearchParams(searchParams);
-          callbackParams.append('verified', 'true');
-          navigate('/auth/callback?' + callbackParams.toString(), { replace: true });
-          return;
+        // After successful verification, redirect to the specified URL or callback
+        if (redirectTo) {
+          window.location.href = redirectTo;
+        } else {
+          navigate('/auth/callback?verified=true', { replace: true });
         }
-
-        // If no token but we have type and email, redirect to callback
-        if (type && email) {
-          navigate('/auth/callback?' + searchParams.toString(), { replace: true });
-          return;
-        }
-
-        throw new Error('Invalid verification link - missing required parameters');
       } catch (err) {
         console.error('Verification error:', err);
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        setError(err instanceof Error ? err.message : 'Verification failed');
+        // On error, redirect to home after 5 seconds
+        setTimeout(() => navigate('/'), 5000);
       } finally {
         setVerifying(false);
       }
     }
 
     verifyEmail();
-  }, [searchParams, navigate]);
+  }, [navigate, searchParams]);
 
   if (verifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-lg">Verifying your email...</p>
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto p-8 text-center">
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Verifying Your Email</h2>
+          <p className="text-gray-600">Just a moment while we confirm your email address...</p>
         </div>
       </div>
     );
@@ -72,21 +64,16 @@ export default function VerifyEmail() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-center">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold mb-4">Verification Failed</h1>
-          <p className="text-gray-300 mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
-          >
-            Return Home
-          </button>
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto p-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <h2 className="text-xl font-semibold text-red-600 mb-2">Verification Failed</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <p className="text-sm text-red-500">Redirecting you to the home page...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+    </div>
+  );
 
   return null;
 }
