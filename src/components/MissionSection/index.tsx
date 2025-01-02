@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Music2,
   Sparkles,
-  HandshakeIcon,
+  Handshake,
   Rocket,
   Lightbulb,
   Users,
@@ -37,7 +37,7 @@ const pillars: Pillar[] = [
         description: 'Maintain complete artistic control over your music.'
       },
       {
-        icon: HandshakeIcon,
+        icon: Handshake,
         title: 'Fair Ecosystem',
         description: 'Equal opportunities and fair compensation for all creators.'
       },
@@ -81,7 +81,7 @@ const pillars: Pillar[] = [
         description: 'Access exclusive AI-enhanced music and collaborations.'
       },
       {
-        icon: HandshakeIcon,
+        icon: Handshake,
         title: 'Direct Support',
         description: 'Support creators directly and engage with the community.'
       },
