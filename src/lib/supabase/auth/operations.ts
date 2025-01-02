@@ -401,3 +401,28 @@ export async function updateUsername(username: string) {
     };
   }
 }
+
+export async function checkUsernameAvailability(username: string) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      available: !data,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error checking username availability:', error);
+    return {
+      available: false,
+      error: error instanceof Error ? error : new Error('Failed to check username availability')
+    };
+  }
+}

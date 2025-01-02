@@ -1,7 +1,7 @@
 import { initializeAuth } from './initialize';
 import { setupAuthListener } from './listener';
-import { signInWithEmail, signUpWithEmail, signOut } from './operations';
-import { validateUsername, checkUsernameAvailability } from './validation';
+import { signInWithEmail, signUpWithEmail, signOut, checkUsernameAvailability } from './operations';
+import { validateUsername } from './validation';
 
 export {
   initializeAuth,

@@ -38,21 +38,34 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // Generate a unique temporary username based on timestamp and random string
-      const timestamp = Date.now().toString(36);
-      const random = Math.random().toString(36).substring(2, 6);
-      const tempUsername = `user_${timestamp}${random}`;
+      // More robust username generation with retries
+      let tempUsername = '';
+      let isUsernameAvailable = false;
+      let attempts = 0;
+      const maxAttempts = 5;
 
-      // Validate username availability
-      const { available, error: usernameError } = await checkUsernameAvailability(tempUsername);
-      if (usernameError) {
-        throw usernameError;
-      }
-      if (!available) {
-        throw new Error('Failed to generate unique username. Please try again.');
+      while (!isUsernameAvailable && attempts < maxAttempts) {
+        const timestamp = Date.now().toString(36);
+        const random = Math.random().toString(36).substring(2, 8); // Increased random string length
+        tempUsername = `user_${timestamp}${random}`;
+
+        const { available, error: usernameError } = await checkUsernameAvailability(tempUsername);
+        
+        if (usernameError) {
+          console.error('Username check error:', usernameError);
+        } else if (available) {
+          isUsernameAvailable = true;
+          break;
+        }
+        
+        attempts++;
       }
 
-      // Attempt signup
+      if (!isUsernameAvailable) {
+        throw new Error('Unable to generate a unique username. Please try again.');
+      }
+
+      // Attempt signup with the verified unique username
       const { requiresEmailConfirmation, error: signUpError } = await signUp(email, password, { 
         username: tempUsername,
         metadata: {
@@ -67,9 +80,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
       if (requiresEmailConfirmation) {
         setShowVerificationMessage(true);
-        // Don't clear email here so it shows in the verification message
       } else {
-        // Only clear form if email verification is not required
         setEmail('');
         setPassword('');
         setConfirmPassword('');
