@@ -15,33 +15,47 @@ export async function signUpWithEmail(
   metadata?: { username?: string }
 ): Promise<SignUpResponse> {
   try {
-    // 1) Generate a valid username
-    let username = metadata?.username || email.split('@')[0];
-    username = username.replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!/^[a-zA-Z0-9]/.test(username)) {
-      username = 'user' + username;
+    // Generate a temporary username if not provided
+    let username = metadata?.username || `user_${Math.random().toString(36).substring(2, 10)}`;
+    
+    // Ensure username is unique by adding random suffix if needed
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (!isUnique && attempts < maxAttempts) {
+      const { data, error } = await supabaseAdmin!.from('users')
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (!data) {
+        isUnique = true;
+      } else {
+        username = `user_${Math.random().toString(36).substring(2, 10)}`;
+        attempts++;
+      }
     }
 
-    // 2) Validate username format
-    const validationError = validateUsername(username);
-    if (validationError) throw new Error(validationError);
-
-    // 3) Check if username is available
-    const isAvailable = await checkUsernameAvailability(username);
-    if (!isAvailable) throw new Error('Username already taken');
+    if (!isUnique) {
+      throw new Error('Could not generate unique username');
+    }
 
     // Get the site URL for email redirect
     const siteUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
     if (!siteUrl) throw new Error('Site URL not configured');
 
-    // 4) Perform signUp with metadata and email redirect
+    // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { 
           username,
-          pending_email_verification: true
+          pending_email_verification: true,
+          has_set_username: false // New flag to indicate if user has set their own username
         },
         emailRedirectTo: `${siteUrl}/auth/verify?type=signup`
       },
@@ -49,19 +63,17 @@ export async function signUpWithEmail(
 
     if (error) throw error;
 
-    // Return success with email confirmation flag
     return {
       data,
       error: null,
-      message: 'Please check your email for the confirmation link.',
       requiresEmailConfirmation: true
     };
   } catch (error) {
-    console.error('Signup error:', error);
-    return { 
-      data: null, 
+    console.error('Sign up error:', error);
+    return {
+      data: null,
       error: error as AuthError | Error,
-      message: error instanceof Error ? error.message : 'An unexpected error occurred'
+      requiresEmailConfirmation: false
     };
   }
 }

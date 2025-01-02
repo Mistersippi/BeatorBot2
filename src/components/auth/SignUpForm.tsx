@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, User, Loader } from 'lucide-react';
+import { Mail, Lock, Loader } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { checkUsernameAvailability } from '../../lib/supabase/auth';
@@ -15,43 +15,11 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [username, setUsername] = useState('');
   const [newsletter, setNewsletter] = useState(false);
   const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [usernameError, setUsernameError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
-
-  const validateUsername = (value: string) => {
-    if (!value) return '';
-    if (value.length < 3) {
-      return 'Username must be at least 6 characters';
-    }
-    if (value.length > 30) {
-      return 'Username must be less than 30 characters';
-    }
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value)) {
-      return 'Username can only contain letters, numbers, underscores and hyphens';
-    }
-    return '';
-  };
-
-  const handleUsernameChange = async (value: string) => {
-    setUsername(value);
-    const validationError = validateUsername(value);
-    if (validationError) {
-      setUsernameError(validationError);
-      return;
-    }
-
-    if (value) {
-      const isAvailable = await checkUsernameAvailability(value);
-      setUsernameError(isAvailable ? '' : 'Username already taken');
-    } else {
-      setUsernameError('');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +28,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
     try {
       // Validate form
-      if (!email || !password || !confirmPassword || !username) {
+      if (!email || !password || !confirmPassword) {
         throw new Error('All fields are required');
       }
       if (password !== confirmPassword) {
@@ -70,27 +38,22 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // Check username availability
-      const usernameAvailable = await checkUsernameAvailability(username);
-      if (!usernameAvailable) {
-        throw new Error('Username is already taken');
-      }
+      // Generate a random temporary username
+      const tempUsername = `user_${Math.random().toString(36).substring(2, 10)}`;
 
       // Attempt signup
-      const { requiresEmailConfirmation } = await signUp(email, password, { username });
-      
+      const { requiresEmailConfirmation } = await signUp(email, password, { username: tempUsername });
+
       if (requiresEmailConfirmation) {
         setShowVerificationMessage(true);
       }
-      
+
       // Clear form
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setUsername('');
       setNewsletter(false);
       setTerms(false);
-      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
     } finally {
@@ -148,27 +111,6 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
               required
             />
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Username
-          </label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => handleUsernameChange(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                usernameError ? 'border-red-500' : 'border-gray-300'
-              }`}
-              required
-            />
-          </div>
-          {usernameError && (
-            <p className="mt-1 text-sm text-red-500">{usernameError}</p>
-          )}
         </div>
 
         <div>
