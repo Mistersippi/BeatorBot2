@@ -18,6 +18,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [data, setData] = useState(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +42,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
       const tempUsername = `${baseUsername}_${Date.now().toString(36)}`;
 
       // Attempt signup
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -58,6 +59,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
       // If we got here, the signup was successful
       setShowVerificationMessage(true);
+      setData(signUpData);
 
     } catch (err) {
       console.error('Signup error:', err);
@@ -82,9 +84,34 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
               We've sent a verification link to:
             </p>
             <p className="font-semibold text-lg mt-2 mb-4">{email}</p>
-            <p className="text-sm text-gray-500">
-              Click the link in your email to complete your registration.
-              If you don't see it, check your spam folder.
+          </div>
+          
+          <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-purple-800 mb-2">Or use this verification code:</h3>
+            <p className="font-mono text-lg text-center bg-white p-3 rounded border border-purple-200">
+              {data?.user?.confirmation_sent_at}
+            </p>
+            <p className="text-sm text-purple-700 mt-2">
+              You can enter this code manually at{' '}
+              <a href="/auth/verify" className="underline">
+                the verification page
+              </a>
+            </p>
+          </div>
+
+          <div className="text-sm text-center text-gray-600">
+            <p>Click the link in your email to verify your account.</p>
+            <p className="mt-2">
+              If you don't see it, check your spam folder or{' '}
+              <button
+                onClick={() => {
+                  // TODO: Implement resend functionality
+                  console.log('Resend verification email');
+                }}
+                className="text-purple-600 hover:text-purple-700"
+              >
+                resend the email
+              </button>
             </p>
           </div>
         </div>
