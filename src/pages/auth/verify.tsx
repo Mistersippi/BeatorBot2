@@ -13,20 +13,29 @@ export function VerifyEmail() {
   useEffect(() => {
     const handleVerification = async () => {
       try {
+        // Log all URL parameters for debugging
+        console.log('URL parameters:', Object.fromEntries(searchParams.entries()));
+
         // Get token_hash and type from URL
         const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type') as 'signup' | 'recovery' | 'invite' | 'email';
 
         if (!token_hash || !type) {
+          console.error('Missing parameters:', { token_hash, type });
           throw new Error('Missing verification parameters');
         }
 
         // Attempt verification with token
-        const { error } = await verifyOtp(token_hash, type);
-        if (error) throw error;
+        const { data, error } = await verifyOtp(token_hash, type);
+        
+        if (error) {
+          console.error('Verification failed:', error);
+          throw error;
+        }
 
-        // Check if verification was successful
+        // Double check if verification was successful
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('User after verification:', user);
         
         if (user?.email_verified) {
           toast.success('Email verified successfully!');
@@ -36,7 +45,7 @@ export function VerifyEmail() {
         }
 
         // If we get here, something went wrong
-        throw new Error('Verification failed');
+        throw new Error('Verification status check failed');
 
       } catch (err) {
         console.error('Verification error:', err);

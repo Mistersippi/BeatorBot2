@@ -91,23 +91,38 @@ export async function verifyOtp(
   type: 'signup' | 'recovery' | 'invite' | 'email'
 ) {
   try {
+    // Decode the token_hash since it comes from a URL
+    const decodedToken = decodeURIComponent(token_hash);
+    console.log('Verifying with token:', decodedToken, 'type:', type); // Debug log
+
     // Use verifyOtp with token_hash
     const { data, error } = await supabase.auth.verifyOtp({
-      token_hash,
+      token_hash: decodedToken,
       type
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('OTP verification error:', error); // Debug log
+      throw error;
+    }
+
+    console.log('Verification response:', data); // Debug log
 
     // If verification successful and we have a user, sync their profile
     if (data?.user) {
+      console.log('Updating user metadata for:', data.user.id); // Debug log
+
       // Update user metadata to remove pending flag
-      await supabase.auth.updateUser({
+      const { error: updateError } = await supabase.auth.updateUser({
         data: { 
           pending_email_verification: false,
           email_verified: true
         }
       });
+
+      if (updateError) {
+        console.error('Error updating user metadata:', updateError);
+      }
 
       // Sync user profile
       await syncUserProfile(data.user);
