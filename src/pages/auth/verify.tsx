@@ -1,49 +1,74 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase/client';
 import toast from 'react-hot-toast';
 
 export function VerifyEmail() {
   const [verifying, setVerifying] = useState(true);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const checkVerification = async () => {
+    const verifyEmail = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) throw error;
+        // First check if already verified
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
 
         if (user?.email_verified) {
-          // Add a short delay to ensure all auth processes are complete
-          timeoutId = setTimeout(() => {
-            setVerifying(false);
-            toast.success('Email verified successfully!');
-            navigate('/profile/settings');
-          }, 1500);
-        } else {
-          // If not verified after 10 seconds, show error
-          timeoutId = setTimeout(() => {
-            setVerifying(false);
-          }, 10000);
+          setVerifying(false);
+          toast.success('Email already verified!');
+          navigate('/profile/settings');
+          return;
         }
+
+        // If not verified, try token verification
+        const token = searchParams.get('token');
+        const token_hash = searchParams.get('token_hash');
+        const type = searchParams.get('type');
+
+        if (token_hash && type) {
+          // Handle Supabase magic link verification
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash,
+            type: type as any
+          });
+          if (error) throw error;
+        } else if (token) {
+          // Handle custom token verification
+          const { error } = await supabase.auth.verifyOtp({
+            token,
+            type: 'signup'
+          });
+          if (error) throw error;
+        }
+
+        // After verification attempt, check status again
+        const { data: { user: updatedUser }, error: updateError } = await supabase.auth.getUser();
+        if (updateError) throw updateError;
+
+        if (updatedUser?.email_verified) {
+          setVerifying(false);
+          toast.success('Email verified successfully!');
+          navigate('/profile/settings');
+          return;
+        }
+
+        // If still not verified after attempts, show error
+        setTimeout(() => {
+          setVerifying(false);
+          toast.error('Email verification failed');
+        }, 5000);
+
       } catch (err) {
-        console.error('Error checking verification status:', err);
+        console.error('Verification error:', err);
         setVerifying(false);
-        toast.error('Verification check failed');
+        toast.error('Verification failed. Please try again.');
       }
     };
 
-    // Check immediately and then every 2 seconds
-    checkVerification();
-    const intervalId = setInterval(checkVerification, 2000);
-
-    return () => {
-      clearInterval(intervalId);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [navigate]);
+    verifyEmail();
+  }, [navigate, searchParams]);
 
   if (verifying) {
     return (
