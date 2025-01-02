@@ -49,9 +49,9 @@ export async function signUpWithEmail(
       console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
 
-    // Always use production URL for email redirects in production
+    // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
 
     // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
@@ -211,9 +211,9 @@ export async function sendPasswordResetEmail(email: string) {
       console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
 
-    // Always use production URL for email redirects in production
+    // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${redirectUrl}/auth/confirm?type=recovery&next=/account/update-password`
@@ -234,9 +234,9 @@ export async function sendMagicLink(email: string) {
       console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
 
-    // Always use production URL for email redirects in production
+    // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
@@ -280,9 +280,9 @@ export async function inviteUser(email: string) {
       console.error('VITE_SITE_URL is not configured. This will affect email redirects.');
     }
 
-    // Always use production URL for email redirects in production
+    // Always use production domain for email redirects in production
     const isProd = import.meta.env.PROD;
-    const redirectUrl = isProd ? 'https://www.beatorbot.com' : (siteUrl || window.location.origin);
+    const redirectUrl = isProd ? 'https://beatorbot.com' : (siteUrl || window.location.origin);
 
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${redirectUrl}/auth/confirm?type=invite&next=/welcome`,

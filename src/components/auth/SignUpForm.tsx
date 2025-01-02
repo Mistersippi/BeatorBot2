@@ -42,19 +42,25 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
       const tempUsername = `user_${Math.random().toString(36).substring(2, 10)}`;
 
       // Attempt signup
-      const { requiresEmailConfirmation } = await signUp(email, password, { username: tempUsername });
+      const { requiresEmailConfirmation, error: signUpError } = await signUp(email, password, { username: tempUsername });
+
+      if (signUpError) {
+        throw signUpError;
+      }
 
       if (requiresEmailConfirmation) {
         setShowVerificationMessage(true);
+        // Don't clear email here so it shows in the verification message
+      } else {
+        // Only clear form if email verification is not required
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+        setNewsletter(false);
+        setTerms(false);
       }
-
-      // Clear form
-      setEmail('');
-      setPassword('');
-      setConfirmPassword('');
-      setNewsletter(false);
-      setTerms(false);
     } catch (err) {
+      console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
     } finally {
       setLoading(false);
@@ -66,19 +72,39 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
       <AuthModal
         isOpen={showSignUp}
         onClose={() => setShowSignUp(false)}
-        title="Check Your Email"
+        title="Verify Your Email"
       >
-        <div className="p-6 text-center">
-          <h2 className="text-2xl font-bold mb-4">Check Your Email</h2>
-          <p className="mb-6">
-            We've sent a verification link to <span className="font-semibold">{email}</span>.
-            Please check your inbox (and spam folder) to verify your email address.
-          </p>
-          {showVerificationMessage && (
-            <div className="mt-4 text-sm text-green-600">
-              Please check your email for a verification link.
-            </div>
-          )}
+        <div className="p-6">
+          <div className="text-center mb-6">
+            <Mail className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
+            <p className="text-gray-600">
+              We've sent a verification link to:
+            </p>
+            <p className="font-semibold text-lg mt-2 mb-4">{email}</p>
+          </div>
+          
+          <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-purple-800 mb-2">Next steps:</h3>
+            <ol className="list-decimal list-inside text-purple-700 space-y-2">
+              <li>Open your email inbox</li>
+              <li>Look for an email from BeatorBot</li>
+              <li>Click the verification link in the email</li>
+            </ol>
+          </div>
+
+          <div className="text-sm text-gray-500">
+            <p>Can't find the email? Check your spam folder or click below to resend.</p>
+            <button
+              onClick={() => {
+                // TODO: Implement resend verification email
+                console.log('Resend verification email');
+              }}
+              className="text-purple-600 hover:text-purple-700 font-medium mt-2"
+            >
+              Resend verification email
+            </button>
+          </div>
         </div>
       </AuthModal>
     );
