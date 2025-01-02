@@ -98,45 +98,32 @@ export async function signUpWithEmail(
 
 export async function syncUserProfile(user: User) {
   try {
-    // Use admin client if available, otherwise fall back to regular client
-    const client = supabaseAdmin || supabase;
-    
-    const { data: existingProfile, error: selectError } = await client
+    const { data, error } = await supabase
       .from('users')
-      .select('*')
-      .eq('auth_id', user.id)
-      .single();
-
-    if (selectError && selectError.code !== 'PGRST116') { // Not found error is ok
-      throw selectError;
-    }
-
-    if (!existingProfile) {
-      // Create new profile with required data
-      const { error: insertError } = await client
-        .from('users')
-        .insert({
+      .upsert(
+        {
           auth_id: user.id,
           email: user.email,
-          username: user.user_metadata?.username || user.email?.split('@')[0],
-          avatar_url: null,
-          bio: null,
-          has_set_username: false,
-          account_status: 'active',
-          account_type: 'user',
-          metadata: {}
-        });
+          username: user.user_metadata.username || user.email?.split('@')[0],
+          has_set_username: user.user_metadata.has_set_username || false,
+        },
+        {
+          onConflict: 'auth_id',
+          ignoreDuplicates: false,
+        }
+      )
+      .select()
+      .single();
 
-      if (insertError) {
-        console.error('Error inserting user profile:', insertError);
-        throw insertError;
-      }
+    if (error) {
+      console.error('Error syncing user profile:', error);
+      throw error;
     }
 
-    return { error: null };
+    return data;
   } catch (error) {
-    console.error('Profile sync error:', error);
-    return { error };
+    console.error('Error syncing user profile:', error);
+    throw error;
   }
 }
 

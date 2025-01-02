@@ -1,6 +1,7 @@
 -- Create users table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     username TEXT UNIQUE NOT NULL,
     avatar_url TEXT,
@@ -12,19 +13,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
 );
-
--- Add auth_id column if it doesn't exist
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT FROM information_schema.columns 
-        WHERE table_name = 'users' 
-        AND column_name = 'auth_id'
-    ) THEN
-        ALTER TABLE public.users 
-        ADD COLUMN auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
 
 -- Add other columns if they don't exist
 DO $$ 
