@@ -44,8 +44,11 @@ export async function signUpWithEmail(
     }
 
     // Get the site URL for email redirect
-    const siteUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl) throw new Error('Site URL not configured');
+    const siteUrl = import.meta.env.VITE_SITE_URL;
+    if (!siteUrl) {
+      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+    }
+    const redirectUrl = siteUrl || window.location.origin;
 
     // Perform signUp with metadata and email redirect
     const { data, error } = await supabase.auth.signUp({
@@ -57,7 +60,7 @@ export async function signUpWithEmail(
           pending_email_verification: true,
           has_set_username: false // New flag to indicate if user has set their own username
         },
-        emailRedirectTo: `${siteUrl}/auth/verify?type=signup`
+        emailRedirectTo: `${redirectUrl}/auth/verify?type=signup`
       },
     });
 
@@ -184,11 +187,14 @@ export async function createUserProfile(user: any) {
 
 export async function sendPasswordResetEmail(email: string) {
   try {
-    const siteUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl) throw new Error('Site URL not configured');
+    const siteUrl = import.meta.env.VITE_SITE_URL;
+    if (!siteUrl) {
+      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+    }
+    const redirectUrl = siteUrl || window.location.origin;
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/confirm?type=recovery&next=/account/update-password`
+      redirectTo: `${redirectUrl}/auth/confirm?type=recovery&next=/account/update-password`
     });
     
     if (error) throw error;
@@ -201,13 +207,16 @@ export async function sendPasswordResetEmail(email: string) {
 
 export async function sendMagicLink(email: string) {
   try {
-    const siteUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl) throw new Error('Site URL not configured');
+    const siteUrl = import.meta.env.VITE_SITE_URL;
+    if (!siteUrl) {
+      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+    }
+    const redirectUrl = siteUrl || window.location.origin;
 
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${siteUrl}/auth/confirm?type=magiclink&next=/`
+        emailRedirectTo: `${redirectUrl}/auth/confirm?type=magiclink&next=/`
       }
     });
     
@@ -241,11 +250,14 @@ export async function updatePassword(newPassword: string) {
 
 export async function inviteUser(email: string) {
   try {
-    const siteUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl) throw new Error('Site URL not configured');
+    const siteUrl = import.meta.env.VITE_SITE_URL;
+    if (!siteUrl) {
+      console.warn('VITE_SITE_URL not configured, falling back to window.location.origin');
+    }
+    const redirectUrl = siteUrl || window.location.origin;
 
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl}/auth/confirm?type=invite&next=/welcome`,
+      redirectTo: `${redirectUrl}/auth/confirm?type=invite&next=/welcome`,
       data: {
         invited: true,
         pending_email_verification: true
