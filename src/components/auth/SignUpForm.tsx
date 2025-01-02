@@ -46,6 +46,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         email,
         password,
         options: {
+          // Important: Update this path to match your route structure
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             username: tempUsername,

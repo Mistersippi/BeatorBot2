@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: 
 const Submissions = lazy(() => import('./pages/Submissions').then(module => ({ default: module.Submissions })));
 const AuthCallback = lazy(() => import('./pages/auth/callback').then(module => ({ default: module.default })));
 const AuthConfirm = lazy(() => import('./pages/auth/confirm').then(module => ({ default: module.default })));
+const AuthError = lazy(() => import('./pages/auth/error').then(module => ({ default: module.default })));
 
 // Admin pages
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then(module => ({ default: module.Dashboard })));
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/auth/verify" element={<AuthVerify />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/auth/confirm" element={<AuthConfirm />} />
+              <Route path="/auth/error" element={<AuthError />} />
               <Route path="/challenge" element={<Challenge />} />
               <Route path="/results" element={<Results />} />
               
