@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Mail, Lock, Loader } from 'lucide-react';
-import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
+import { supabase } from '../../lib/supabase/client';
 
 interface SignUpFormProps {
   showSignUp: boolean;
@@ -10,7 +10,6 @@ interface SignUpFormProps {
 }
 
 export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUpFormProps) {
-  const { signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,55 +36,29 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // Generate username
+      // Generate a simple username from email
       const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      const timestamp = Date.now().toString(36).slice(-4);
-      const tempUsername = `${baseUsername}_${timestamp}`;
+      const tempUsername = `${baseUsername}_${Date.now().toString(36)}`;
 
-      console.log('Attempting signup with username:', tempUsername);
-
-      // Attempt signup directly without availability check
-      const signupResult = await signUp(email, password, { 
-        username: tempUsername,
-        metadata: {
-          newsletter: newsletter,
-          signup_completed: false
+      // Attempt signup
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            username: tempUsername,
+            email: email,
+            newsletter: newsletter,
+          }
         }
       });
 
-      if (signupResult.error) {
-        if (signupResult.error.message.includes('username')) {
-          // If username error, try again with a different suffix
-          const retryUsername = `${baseUsername}_${Math.random().toString(36).slice(-6)}`;
-          console.log('Retrying signup with username:', retryUsername);
-          
-          const retryResult = await signUp(email, password, {
-            username: retryUsername,
-            metadata: {
-              newsletter: newsletter,
-              signup_completed: false
-            }
-          });
-          
-          if (retryResult.error) {
-            throw retryResult.error;
-          }
-          
-          if (retryResult.requiresEmailConfirmation) {
-            setShowVerificationMessage(true);
-          }
-        } else {
-          throw signupResult.error;
-        }
-      } else if (signupResult.requiresEmailConfirmation) {
-        setShowVerificationMessage(true);
-      } else {
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
-        setNewsletter(false);
-        setTerms(false);
-      }
+      if (signUpError) throw signUpError;
+
+      // If we got here, the signup was successful
+      setShowVerificationMessage(true);
+
     } catch (err) {
       console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
@@ -109,28 +82,10 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
               We've sent a verification link to:
             </p>
             <p className="font-semibold text-lg mt-2 mb-4">{email}</p>
-          </div>
-          
-          <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-purple-800 mb-2">Next steps:</h3>
-            <ol className="list-decimal list-inside text-purple-700 space-y-2">
-              <li>Open your email inbox</li>
-              <li>Look for an email from BeatorBot</li>
-              <li>Click the verification link in the email</li>
-            </ol>
-          </div>
-
-          <div className="text-sm text-gray-500">
-            <p>Can't find the email? Check your spam folder or click below to resend.</p>
-            <button
-              onClick={() => {
-                // TODO: Implement resend verification email
-                console.log('Resend verification email');
-              }}
-              className="text-purple-600 hover:text-purple-700 font-medium mt-2"
-            >
-              Resend verification email
-            </button>
+            <p className="text-sm text-gray-500">
+              Click the link in your email to complete your registration.
+              If you don't see it, check your spam folder.
+            </p>
           </div>
         </div>
       </AuthModal>
@@ -143,69 +98,57 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
       onClose={() => setShowSignUp(false)}
       title="Create an Account"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+      <form onSubmit={handleSubmit} className="p-6">
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500"
+              placeholder="you@example.com"
             />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500"
+              placeholder="••••••••"
             />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password
-          </label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              Confirm Password
+            </label>
             <input
+              id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500"
+              placeholder="••••••••"
             />
           </div>
-        </div>
 
-        <div className="space-y-2">
           <div className="flex items-center">
             <input
-              type="checkbox"
               id="newsletter"
+              type="checkbox"
               checked={newsletter}
               onChange={(e) => setNewsletter(e.target.checked)}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
             />
             <label htmlFor="newsletter" className="ml-2 block text-sm text-gray-700">
               Subscribe to our newsletter
@@ -214,41 +157,51 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
           <div className="flex items-center">
             <input
-              type="checkbox"
               id="terms"
+              type="checkbox"
               checked={terms}
               onChange={(e) => setTerms(e.target.checked)}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
             />
             <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-              I agree to the <a href="/terms" className="text-purple-600 hover:text-purple-700">Terms of Service</a>
+              I agree to the Terms and Conditions
             </label>
           </div>
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          {loading ? (
-            <>
-              <Loader className="animate-spin -ml-1 mr-2 h-5 w-5" />
-              Creating account...
-            </>
-          ) : (
-            'Create Account'
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                </div>
+              </div>
+            </div>
           )}
-        </button>
 
-        <div className="text-center">
           <button
-            type="button"
-            onClick={switchToSignIn}
-            className="text-sm text-purple-600 hover:text-purple-700"
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Already have an account? Sign in
+            {loading ? (
+              <>
+                <Loader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                Creating Account...
+              </>
+            ) : (
+              'Create Account'
+            )}
           </button>
+
+          <div className="text-sm text-center">
+            <button
+              type="button"
+              onClick={switchToSignIn}
+              className="font-medium text-purple-600 hover:text-purple-500"
+            >
+              Already have an account? Sign in
+            </button>
+          </div>
         </div>
       </form>
     </AuthModal>
