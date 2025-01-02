@@ -11,54 +11,26 @@ export function VerifyEmail() {
   useEffect(() => {
     const verifyEmail = async () => {
       try {
-        // First check if already verified
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-
-        if (user?.email_verified) {
-          setVerifying(false);
-          toast.success('Email already verified!');
-          navigate('/profile/settings');
-          return;
-        }
-
-        // If not verified, try token verification
-        const token = searchParams.get('token');
+        // Get the token_hash and type from URL to match Supabase's format
         const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type');
 
-        if (token_hash && type) {
-          // Handle Supabase magic link verification
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash,
-            type: type as any
-          });
-          if (error) throw error;
-        } else if (token) {
-          // Handle custom token verification
-          const { error } = await supabase.auth.verifyOtp({
-            token,
-            type: 'signup'
-          });
-          if (error) throw error;
+        if (!token_hash) {
+          throw new Error('No verification token found');
         }
 
-        // After verification attempt, check status again
-        const { data: { user: updatedUser }, error: updateError } = await supabase.auth.getUser();
-        if (updateError) throw updateError;
+        // Verify using the exact token_hash from the URL
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: type || 'signup'  // Using 'signup' as the default type
+        });
 
-        if (updatedUser?.email_verified) {
-          setVerifying(false);
-          toast.success('Email verified successfully!');
-          navigate('/profile/settings');
-          return;
-        }
+        if (error) throw error;
 
-        // If still not verified after attempts, show error
-        setTimeout(() => {
-          setVerifying(false);
-          toast.error('Email verification failed');
-        }, 5000);
+        // If verification successful, show success and redirect
+        toast.success('Email verified successfully!');
+        setVerifying(false);
+        navigate('/profile/settings');
 
       } catch (err) {
         console.error('Verification error:', err);
