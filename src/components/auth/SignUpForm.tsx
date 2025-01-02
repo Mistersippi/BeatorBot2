@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Mail, Lock, Loader } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
-import { checkUsernameAvailability } from '../../lib/supabase/auth';
 
 interface SignUpFormProps {
   showSignUp: boolean;
@@ -38,44 +37,14 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         throw new Error('You must accept the terms and conditions');
       }
 
-      // More robust username generation with retries and logging
-      let tempUsername = '';
-      let isUsernameAvailable = false;
-      let attempts = 0;
-      const maxAttempts = 5;
+      // Generate username
+      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      const timestamp = Date.now().toString(36).slice(-4);
+      const tempUsername = `${baseUsername}_${timestamp}`;
 
-      while (!isUsernameAvailable && attempts < maxAttempts) {
-        // Use email prefix as base for username
-        const emailPrefix = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
-        const random = Math.random().toString(36).substring(2, 6).toLowerCase();
-        tempUsername = `${emailPrefix}_${random}`;
+      console.log('Attempting signup with username:', tempUsername);
 
-        console.log(`Attempt ${attempts + 1}: Trying username "${tempUsername}"`);
-
-        const { available, error: usernameError } = await checkUsernameAvailability(tempUsername);
-        
-        if (usernameError) {
-          console.error('Username check error:', usernameError);
-        } else {
-          console.log(`Username "${tempUsername}" available:`, available);
-          if (available) {
-            isUsernameAvailable = true;
-            break;
-          }
-        }
-        
-        attempts++;
-        // Add small delay between attempts
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      if (!isUsernameAvailable) {
-        throw new Error(`Unable to generate a unique username after ${maxAttempts} attempts. Please try again.`);
-      }
-
-      console.log('Final username:', tempUsername);
-
-      // Attempt signup with the verified unique username
+      // Attempt signup directly without availability check
       const signupResult = await signUp(email, password, { 
         username: tempUsername,
         metadata: {
@@ -84,13 +53,31 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
         }
       });
 
-      console.log('Signup result:', signupResult);
-
       if (signupResult.error) {
-        throw signupResult.error;
-      }
-
-      if (signupResult.requiresEmailConfirmation) {
+        if (signupResult.error.message.includes('username')) {
+          // If username error, try again with a different suffix
+          const retryUsername = `${baseUsername}_${Math.random().toString(36).slice(-6)}`;
+          console.log('Retrying signup with username:', retryUsername);
+          
+          const retryResult = await signUp(email, password, {
+            username: retryUsername,
+            metadata: {
+              newsletter: newsletter,
+              signup_completed: false
+            }
+          });
+          
+          if (retryResult.error) {
+            throw retryResult.error;
+          }
+          
+          if (retryResult.requiresEmailConfirmation) {
+            setShowVerificationMessage(true);
+          }
+        } else {
+          throw signupResult.error;
+        }
+      } else if (signupResult.requiresEmailConfirmation) {
         setShowVerificationMessage(true);
       } else {
         setEmail('');

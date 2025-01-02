@@ -405,29 +405,26 @@ export async function updateUsername(username: string) {
 export async function checkUsernameAvailability(username: string) {
   try {
     console.log('Checking availability for username:', username);
-    
-    // Add basic validation
-    if (!username || username.length < 3) {
+
+    // Use a count query instead of select
+    const { data, error, count } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('username', username);
+
+    console.log('Username check response:', { data, error, count });
+
+    if (error) {
+      console.error('Username check error:', error);
       return {
         available: false,
-        error: new Error('Username must be at least 3 characters long')
+        error: error
       };
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', username)
-      .maybeSingle();
-
-    console.log('Username check result:', { data, error });
-
-    if (error) {
-      throw error;
-    }
-
+    // If count is 0, username is available
     return {
-      available: !data,
+      available: count === 0,
       error: null
     };
   } catch (error) {
