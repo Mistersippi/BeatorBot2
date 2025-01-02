@@ -63,7 +63,7 @@ export async function signUpWithEmail(
           pending_email_verification: true,
           has_set_username: false
         },
-        emailRedirectTo: `${redirectUrl}/auth/verify`
+        emailRedirectTo: `${redirectUrl}/auth/callback`
       },
     });
 
