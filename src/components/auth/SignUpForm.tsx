@@ -20,7 +20,7 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<any>(null);
   const navigate = useNavigate(); // Initialize useNavigate
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,9 +61,9 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
 
       if (signUpError) throw signUpError;
 
-      // If we got here, the signup was successful
-      setShowVerificationMessage(true);
+      // Store the signup data
       setData(signUpData);
+      setShowVerificationMessage(true);
 
     } catch (err) {
       console.error('Signup error:', err);
@@ -113,7 +113,8 @@ export function SignUpForm({ showSignUp, setShowSignUp, switchToSignIn }: SignUp
             <p className="font-semibold text-purple-800 mb-2">Or use this verification code:</p>
             <div className="bg-white p-3 rounded border border-purple-200">
               <p className="font-mono text-lg text-center">
-                {data?.user?.email_token || 'Loading...'}
+                {/* Display the token from the session */}
+                {data?.session?.access_token?.slice(-6) || 'Loading...'}
               </p>
             </div>
             <button
