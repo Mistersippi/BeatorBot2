@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase/client';
-import { syncUserProfile } from '../../lib/supabase/auth';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -12,41 +11,63 @@ export default function VerifyEmail() {
   useEffect(() => {
     async function verifyEmail() {
       try {
-        // Get URL parameters
-        const token = searchParams.get('token');
+        const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type');
+        const next = searchParams.get('next') || '/';
 
-        console.log('Verification params:', { token, type });
-
-        if (!token) {
-          throw new Error('No verification token found');
+        if (!token_hash || !type) {
+          throw new Error('Missing verification parameters');
         }
 
         // Verify the token
         const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: token,
+          token_hash,
           type: 'signup',
         });
 
-        if (verifyError) {
-          console.error('Verification error:', verifyError);
-          throw verifyError;
-        }
+        if (verifyError) throw verifyError;
 
-        if (!data.session) {
+        // Check if we have a session
+        if (!data?.session) {
           throw new Error('No session created after verification');
         }
 
-        // Sync user profile after successful verification
-        await syncUserProfile(data.session.user);
+        // Create user profile if needed
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              auth_id: data.session.user.id,
+              email: data.session.user.email,
+              username: data.session.user.email?.split('@')[0],
+              account_status: 'active',
+              account_type: 'user',
+              has_set_username: false
+            }
+          ])
+          .single();
 
-        // Redirect to profile page
-        navigate('/profile', { replace: true });
+        if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+          console.error('Profile creation error:', profileError);
+        }
+
+        // Redirect to success page
+        navigate(next, { 
+          replace: true,
+          state: { verified: true }
+        });
+
       } catch (err) {
         console.error('Verification error:', err);
         setError(err instanceof Error ? err.message : 'Verification failed');
-        // On error, redirect to home after 5 seconds
-        setTimeout(() => navigate('/'), 5000);
+        
+        // Redirect to error page after 5 seconds
+        setTimeout(() => {
+          navigate('/auth/error', { 
+            replace: true,
+            state: { error: 'verification_failed' }
+          });
+        }, 5000);
       } finally {
         setVerifying(false);
       }
@@ -74,7 +95,7 @@ export default function VerifyEmail() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <h2 className="text-xl font-semibold text-red-600 mb-2">Verification Failed</h2>
             <p className="text-red-600 mb-4">{error}</p>
-            <p className="text-sm text-red-500">Redirecting you to the home page...</p>
+            <p className="text-sm text-red-500">Redirecting you to the error page...</p>
           </div>
         </div>
       </div>
