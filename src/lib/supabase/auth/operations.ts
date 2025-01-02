@@ -98,29 +98,53 @@ export async function signUpWithEmail(
 
 export async function syncUserProfile(user: User) {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .upsert(
-        {
-          auth_id: user.id,
-          email: user.email,
-          username: user.user_metadata.username || user.email?.split('@')[0],
-          has_set_username: user.user_metadata.has_set_username || false,
-        },
-        {
-          onConflict: 'auth_id',
-          ignoreDuplicates: false,
-        }
-      )
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error syncing user profile:', error);
-      throw error;
+    if (!user.email) {
+      throw new Error('User email is required');
     }
 
-    return data;
+    // First try to find existing user
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', user.email)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 means not found
+      throw findError;
+    }
+
+    if (existingUser) {
+      // Update existing user
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          auth_id: user.id,
+          email: user.email,
+          username: existingUser.username || user.user_metadata.username || user.email.split('@')[0],
+          has_set_username: existingUser.has_set_username || user.user_metadata.has_set_username || false,
+        })
+        .eq('email', user.email)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      // Insert new user
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          auth_id: user.id,
+          email: user.email,
+          username: user.user_metadata.username || user.email.split('@')[0],
+          has_set_username: user.user_metadata.has_set_username || false,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
   } catch (error) {
     console.error('Error syncing user profile:', error);
     throw error;
