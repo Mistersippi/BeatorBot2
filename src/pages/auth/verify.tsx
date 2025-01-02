@@ -15,28 +15,33 @@ export default function VerifyEmail() {
         // Get URL parameters
         const token = searchParams.get('token');
         const type = searchParams.get('type');
-        const redirectTo = searchParams.get('redirect_to');
 
-        console.log('Verification params:', { token, type, redirectTo });
+        console.log('Verification params:', { token, type });
 
         if (!token) {
           throw new Error('No verification token found');
         }
 
-        // If we have a token, verify it
-        const { error: verifyError } = await supabase.auth.verifyOtp({
+        // Verify the token
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: token,
           type: 'signup',
         });
 
-        if (verifyError) throw verifyError;
-
-        // After successful verification, redirect to the specified URL or callback
-        if (redirectTo) {
-          window.location.href = redirectTo;
-        } else {
-          navigate('/auth/callback?verified=true', { replace: true });
+        if (verifyError) {
+          console.error('Verification error:', verifyError);
+          throw verifyError;
         }
+
+        if (!data.session) {
+          throw new Error('No session created after verification');
+        }
+
+        // Sync user profile after successful verification
+        await syncUserProfile(data.session.user);
+
+        // Redirect to profile page
+        navigate('/profile', { replace: true });
       } catch (err) {
         console.error('Verification error:', err);
         setError(err instanceof Error ? err.message : 'Verification failed');
@@ -72,8 +77,9 @@ export default function VerifyEmail() {
             <p className="text-sm text-red-500">Redirecting you to the home page...</p>
           </div>
         </div>
-    </div>
-  );
+      </div>
+    );
+  }
 
   return null;
 }
