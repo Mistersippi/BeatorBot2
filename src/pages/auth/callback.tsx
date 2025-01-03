@@ -1,38 +1,48 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../components/auth/AuthContext';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '../../lib/supabase/client';
+import { Loader } from 'lucide-react';
 
 export function AuthCallback() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    // Debug logging
-    console.log('AuthCallback: Current user state:', user);
+    const handleCallback = async () => {
+      try {
+        const token_hash = searchParams.get('token_hash');
+        const type = searchParams.get('type');
 
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      // Check if we have a user
-      if (user) {
-        console.log('AuthCallback: User authenticated, redirecting to profile');
-        // User is authenticated, redirect to profile settings
+        console.log('Auth callback params:', { token_hash, type });
+
+        if (!token_hash) {
+          throw new Error('No token hash found in URL');
+        }
+
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: type as 'signup' | 'recovery' | 'invite' | 'email'
+        });
+
+        if (error) throw error;
+
+        // Successful verification
         navigate('/profile/settings');
-      } else {
-        console.log('AuthCallback: No user after timeout, redirecting to home');
-        // If no user after 5 seconds, redirect to home
-        navigate('/');
+      } catch (error) {
+        console.error('Error in auth callback:', error);
+        navigate('/auth/verify?error=' + encodeURIComponent(error.message));
       }
-    }, 5000); // 5 second timeout
+    };
 
-    return () => clearTimeout(timeoutId);
-  }, [user, navigate]);
+    handleCallback();
+  }, [searchParams, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-white">
       <div className="text-center p-8 bg-white rounded-xl shadow-lg">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4 mx-auto"></div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Completing Verification</h2>
-        <p className="text-gray-600">Just a moment while we verify your account...</p>
+        <Loader className="w-8 h-8 animate-spin text-purple-600 mb-4" />
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Verifying your email...</h2>
+        <p className="text-gray-600">Please wait a moment</p>
       </div>
     </div>
   );

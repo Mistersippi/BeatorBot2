@@ -20,43 +20,19 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    debug: import.meta.env.DEV, // Only enable debug in development
     flowType: 'pkce',
     storage: {
       getItem: (key: string) => {
-        try {
-          if (typeof window === 'undefined') return null;
-          return window.localStorage.getItem(key);
-        } catch (error) {
-          console.error('Error accessing localStorage:', error);
-          return null;
-        }
+        return localStorage.getItem(key);
       },
       setItem: (key: string, value: string) => {
-        try {
-          if (typeof window === 'undefined') return;
-          window.localStorage.setItem(key, value);
-        } catch (error) {
-          console.error('Error setting localStorage:', error);
-        }
+        localStorage.setItem(key, value);
       },
       removeItem: (key: string) => {
-        try {
-          if (typeof window === 'undefined') return;
-          window.localStorage.removeItem(key);
-        } catch (error) {
-          console.error('Error removing from localStorage:', error);
-        }
-      }
+        localStorage.removeItem(key);
+      },
     },
-    auth: {
-      redirectTo: `${siteUrl}/auth/callback`
-    }
-  },
-  global: {
-    headers: {
-      'x-my-custom-header': 'BeatorBot2'
-    }
+    redirectTo: `${siteUrl}/auth/callback`
   }
 });
 
